@@ -48,9 +48,9 @@ func setupDB(t *testing.T) string {
 
 func TestSQLiteRepository_Search(t *testing.T) {
 	path := setupDB(t)
-	db, err := sqlite.Open(path)
+	db, err := sqlite.Connect(context.Background(), path)
 	if err != nil {
-		t.Fatalf("Open: %v", err)
+		t.Fatalf("Connect: %v", err)
 	}
 	defer db.Close()
 
@@ -92,9 +92,9 @@ func TestSQLiteRepository_Search(t *testing.T) {
 
 func TestSQLiteRepository_FindByYJCode(t *testing.T) {
 	path := setupDB(t)
-	db, err := sqlite.Open(path)
+	db, err := sqlite.Connect(context.Background(), path)
 	if err != nil {
-		t.Fatalf("Open: %v", err)
+		t.Fatalf("Connect: %v", err)
 	}
 	defer db.Close()
 
@@ -127,9 +127,9 @@ func TestSQLiteRepository_FindByYJCode(t *testing.T) {
 
 func TestSQLiteRepository_ReadOnly(t *testing.T) {
 	path := setupDB(t)
-	db, err := sqlite.Open(path)
+	db, err := sqlite.Connect(context.Background(), path)
 	if err != nil {
-		t.Fatalf("Open: %v", err)
+		t.Fatalf("Connect: %v", err)
 	}
 	defer db.Close()
 

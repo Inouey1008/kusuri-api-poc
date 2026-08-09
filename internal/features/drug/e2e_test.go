@@ -1,6 +1,7 @@
 package drug_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -17,9 +18,9 @@ func newHandler(t *testing.T) http.Handler {
 	t.Helper()
 	path := setupDB(t)
 
-	db, err := sqlite.Open(path)
+	db, err := sqlite.Connect(context.Background(), path)
 	if err != nil {
-		t.Fatalf("sqlite.Open: %v", err)
+		t.Fatalf("sqlite.Connect: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
 

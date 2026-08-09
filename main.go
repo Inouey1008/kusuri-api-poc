@@ -14,15 +14,14 @@ import (
 	"github.com/inouey1008/kusuri-api-poc/internal/router"
 )
 
+// 同梱 DB の固定パス。
+const dbPath = "./assets/master.db"
+
 func main() {
-	// sql.Open は遅延接続のため、フルCPU が割り当てられる INIT フェーズのうちに
-	// PingContext でファイルオープンまで完了させ、第1リクエストのレイテンシを下げる。
-	db, err := sqlite.Open("./assets/master.db")
+	// DB を開いて接続確立。
+	db, err := sqlite.Connect(context.Background(), dbPath)
 	if err != nil {
 		log.Fatalf("DB open failed: %v", err)
-	}
-	if err := db.PingContext(context.Background()); err != nil {
-		log.Fatalf("DB ping failed: %v", err)
 	}
 
 	repo := drug.NewRepository(db)
