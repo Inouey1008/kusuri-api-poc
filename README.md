@@ -13,44 +13,78 @@ main.go                        依存の組み立て (composition root)
    ▼ internal/router           ServeMux (Go 1.22 method+path) + ログ middleware
    │                           Registerer 経由で登録するためモジュールを import しない
    ▼ internal/features/drug    医薬品モジュール
-        handler.go              HTTP ⇔ JSON 変換 + ルート登録 (Register)
+        entity.go               Drug エンティティ (JSON タグなし)
+        dto.go                  リクエスト/レスポンス DTO + 変換関数
+        handler.go              HTTP ⇔ JSON 変換 + バリデーション呼び出し + ルート登録
         service.go              検索ロジック
         repository.go           Repository インターフェース
         repository_sqlite.go    sqliteRepository (database/sql + modernc)
-        drug.go                 Drug エンティティ (JSON タグなし)
-   ▼ internal/infra/sqlite     接続の生成 (immutable=1, ro) とドライバ登録
+   ▼ internal/infra/sqlite     Connect(ctx, path): 読み取り専用で開いて PingContext で疎通確認
+   ▼ internal/validation       go-playground/validator/v10 ラッパ (FieldError / Validate)
 ```
 
 拡張ポイント:
 - **エンドポイント追加**: `drug/handler.go` にハンドラを足し、`Register` に 1 行加える。router は無変更。
 - **モジュール追加**: `internal/features/` 配下に `drug/` と同じ構成のディレクトリを新設し、`main.go` で `router.New` に渡す。既存モジュールには触らない。
 - **DB 差し替え**: `repository_sqlite.go` を同じ `NewRepository` を持つ実装ファイルに差し替える。具象型は非公開なので service/handler/main のいずれも無変更。
-- **Lambda 離脱**: `lambda.Start` と `httpadapter` を外して `http.ListenAndServe` に切り替えるだけ。router 以下は流用できる。
+- **ローカル実行**: `AWS_LAMBDA_RUNTIME_API` が未セットのときは `:8080` で HTTP サーバを起動する (`PORT` で変更可)。Lambda アダプタを外す必要はない。
 
 ## ディレクトリ構成
 
 ```
 .
 ├── main.go
+├── Makefile
 ├── go.mod
 ├── assets/
-│   └── gen.sql          # DB 生成 SQL (ダミーデータ 3 件)
+│   └── gen.sql                         # DB 生成 SQL (ダミーデータ 3 件)
 └── internal/
     ├── features/
     │   └── drug/
-    │       ├── drug.go                 # Drug エンティティ
+    │       ├── entity.go               # Drug エンティティ
+    │       ├── dto.go                  # searchRequest / getRequest / drugResponse / searchResponse
     │       ├── repository.go           # Repository インターフェース
     │       ├── repository_sqlite.go    # sqliteRepository (database/sql 実装)
     │       ├── repository_sqlite_test.go
     │       ├── service.go              # 検索ロジック
     │       ├── service_test.go
-    │       ├── handler.go              # HTTP ハンドラ + DTO + Register
-    │       └── handler_test.go
+    │       ├── handler.go              # HTTP ハンドラ + Register
+    │       ├── handler_test.go
+    │       └── e2e_test.go             # フルスタック統合テスト
     ├── infra/
     │   └── sqlite/
-    │       └── sqlite.go               # SQLite 接続の生成 (ドライバ登録もここ)
-    └── router/
-        └── router.go                   # ServeMux + middleware + Registerer
+    │       └── sqlite.go               # Connect (immutable=1, ro) + ドライバ登録
+    ├── router/
+    │   └── router.go                   # ServeMux + middleware + Registerer
+    └── validation/
+        ├── validation.go               # Validate / FieldError
+        └── validation_test.go
+```
+
+## SQLite 接続
+
+`sqlite.Connect(ctx, path)` は読み取り専用 (`mode=ro&immutable=1`) で開き、`PingContext` で実接続まで確立してから `*sql.DB` を返す。
+
+- `immutable=1` はデプロイ先の読み取り専用 FS (`/var/task`) への対応に必要。
+- `PingContext` による fail-fast で DB 欠損・破損を起動時に早期検出する。
+- DB パスは `main.go` の定数 `./assets/master.db` に固定 (同梱前提)。
+
+## バリデーション
+
+`internal/validation` は go-playground/validator/v10 のラッパ。DTO の `validate` タグで入力を検証し、違反があれば 400 を返す。
+
+| フィールド | ルール |
+|---|---|
+| `q` (検索クエリ) | 任意・最大 100 文字 |
+| `yjCode` | 必須・12 桁英数字 |
+
+エラーレスポンス:
+
+```json
+{
+  "error": "validation failed",
+  "details": [{"field": "yjCode", "message": "must be exactly 12 characters"}]
+}
 ```
 
 ## sqlc 導入 (将来)
@@ -64,37 +98,70 @@ main.go                        依存の組み立て (composition root)
 ### DB 生成
 
 ```sh
-sqlite3 assets/master.db < assets/gen.sql
+make gen-db
 ```
+
+### ローカル実行
+
+```sh
+make run    # DB がなければ自動生成してから go run .
+```
+
+`http://localhost:8080` でリクエストを受け付ける。`PORT` 環境変数でポートを変更可能。
 
 ### テスト
 
 ```sh
-mise use go@latest
-go test ./...
+make test   # go test ./...
+make vet    # go vet ./...
 ```
 
-`internal/features/drug` のテストは一時 SQLite ファイルを `t.TempDir()` に生成するため、`assets/master.db` がなくても実行できる。
+`internal/features/drug` のテストは一時 SQLite ファイルを `t.TempDir()` に生成するため、`assets/master.db` がなくても実行できる。E2E テスト (`e2e_test.go`) はルータ含むフルスタックを検証する。
+
+### Lambda デプロイ用パッケージ
+
+```sh
+make package    # bootstrap (arm64) + assets/master.db を fn.zip にまとめる
+```
 
 ## API
 
-クエリパラメータ `q` で薬品名の部分一致検索。
+### GET /drugs
+
+薬品名の部分一致検索。`q` は省略可 (省略時は全件)。
 
 ```
-GET <Function URL>/drugs?q=エゼチミブ
+GET /drugs?q=エゼチミブ
 ```
 
-レスポンス:
+レスポンス (200):
 
 ```json
 {"total": 2, "items": [{"yjCode": "...", "name": "..."}]}
 ```
 
-YJ コード直接取得:
+バリデーションエラー例 (`q` が 100 文字超):
 
 ```
-GET <Function URL>/drugs/{yjCode}
+HTTP 400
+{"error": "validation failed", "details": [{"field": "q", "message": "must be at most 100 characters"}]}
 ```
+
+### GET /drugs/{yjCode}
+
+YJ コード (12 桁英数字) で 1 件取得。
+
+```
+GET /drugs/1234567890AB
+```
+
+レスポンス (200):
+
+```json
+{"yjCode": "1234567890AB", "name": "薬品名"}
+```
+
+見つからなければ 404、形式不正 (12 桁英数字以外) は 400。
 
 ## 検証結果
 
@@ -102,7 +169,7 @@ GET <Function URL>/drugs/{yjCode}
 
 | 項目 | 結果 |
 |---|---|
-| ローカル: ビルド可否 | OK (`go build ./...` / `go vet ./...`) |
-| ローカル: テスト結果 | PASS (`go test ./...`) |
+| ローカル: ビルド可否 | OK (`make vet` / `make build`) |
+| ローカル: テスト結果 | PASS (`make test`) |
 | AWS: Init Duration | 未実施 |
 | AWS: Duration | 未実施 |
