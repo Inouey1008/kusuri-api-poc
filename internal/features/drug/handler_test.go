@@ -5,46 +5,44 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/features/drug"
 	"github.com/inouey1008/kusuri-api-poc/internal/router"
 )
 
-// stubSvc は drug.NewHandler が要求するユースケース境界を満たすテスト用スタブ。
-type stubSvc struct {
+type stubService struct {
 	searchResult []drug.Drug
 	searchErr    error
 }
 
-func (s *stubSvc) Search(ctx context.Context, q string) ([]drug.Drug, error) {
+func (s *stubService) Search(ctx context.Context, q string) ([]drug.Drug, error) {
 	return s.searchResult, s.searchErr
 }
 
-// newRouter はテスト用のスタブを使ったルーターを組み立てるヘルパ。
-func newRouter(svc *stubSvc) http.Handler {
-	return router.New(drug.NewHandler(svc))
+func newRouter(service *stubService) http.Handler {
+	return router.New(drug.NewHandler(service))
 }
 
 func TestHandler_Search(t *testing.T) {
-	stub := &stubSvc{
+	stub := &stubService{
 		searchResult: []drug.Drug{
 			{YJCode: "2189018F1043", Name: "エゼチミブ錠10mg「JG」"},
 			{YJCode: "2189018F1094", Name: "エゼチミブ錠10mg「YD」"},
 		},
 	}
-	r := newRouter(stub)
+	handler := newRouter(stub)
 
-	req := httptest.NewRequest(http.MethodGet, "/drugs?q=エゼチミブ", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	request := httptest.NewRequest(http.MethodGet, "/drugs?q=エゼチミブ", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", w.Code)
-	}
-	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
-		t.Errorf("Content-Type = %q, want application/json", ct)
-	}
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
 
 	var body struct {
 		Total int `json:"total"`
@@ -53,60 +51,33 @@ func TestHandler_Search(t *testing.T) {
 			Name   string `json:"name"`
 		} `json:"items"`
 	}
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if body.Total != 2 {
-		t.Errorf("total = %d, want 2", body.Total)
-	}
-	if len(body.Items) != 2 {
-		t.Fatalf("len(items) = %d, want 2", len(body.Items))
-	}
-	if body.Items[0].YJCode != "2189018F1043" {
-		t.Errorf("items[0].yjCode = %q, want 2189018F1043", body.Items[0].YJCode)
-	}
+	require.NoError(t, json.NewDecoder(recorder.Body).Decode(&body))
+
+	assert.Equal(t, 2, body.Total)
+	require.Len(t, body.Items, 2)
+	assert.Equal(t, "2189018F1043", body.Items[0].YJCode)
 }
 
-// validationResponse はバリデーションエラーレスポンスの形状。
-type validationResponse struct {
-	Error   string `json:"error"`
-	Details []struct {
-		Field   string `json:"field"`
-		Message string `json:"message"`
-	} `json:"details"`
-}
-
-// バリデーションが handler に配線され 400 を返すことだけを確認する。
-// ルール自体の網羅は dto_test.go の TestSearchRequest_Validate が担う。
 func TestHandler_Search_Validation(t *testing.T) {
-	stub := &stubSvc{}
-	r := newRouter(stub)
+	stub := &stubService{}
+	handler := newRouter(stub)
 
-	// q が 101 文字 (ASCII) → 400
-	longQ := ""
-	for range 101 {
-		longQ += "a"
-	}
+	request := httptest.NewRequest(http.MethodGet, "/drugs?q="+strings.Repeat("a", 101), nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
 
-	req := httptest.NewRequest(http.MethodGet, "/drugs?q="+longQ, nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", w.Code)
+	var body struct {
+		Error   string `json:"error"`
+		Details []struct {
+			Field   string `json:"field"`
+			Message string `json:"message"`
+		} `json:"details"`
 	}
+	require.NoError(t, json.NewDecoder(recorder.Body).Decode(&body))
 
-	var body validationResponse
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if body.Error != "入力内容に誤りがあります" {
-		t.Errorf("error = %q, want \"入力内容に誤りがあります\"", body.Error)
-	}
-	if len(body.Details) == 0 {
-		t.Fatal("details is empty, want at least 1 entry")
-	}
-	if body.Details[0].Field != "q" {
-		t.Errorf("details[0].field = %q, want \"q\"", body.Details[0].Field)
-	}
+	assert.Equal(t, "入力内容に誤りがあります", body.Error)
+	require.NotEmpty(t, body.Details)
+	assert.Equal(t, "q", body.Details[0].Field)
 }
