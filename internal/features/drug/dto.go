@@ -7,7 +7,7 @@ type drugResponse struct {
 	Name   string `json:"name"`
 }
 
-func toResponse(d Drug) drugResponse {
+func (d Drug) toResponse() drugResponse {
 	return drugResponse{YJCode: d.YJCode, Name: d.Name}
 }
 

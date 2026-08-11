@@ -121,8 +121,8 @@ func TestHandler_GetByYJCode_NotFound(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.Error != "not found" {
-		t.Errorf("error = %q, want \"not found\"", body.Error)
+	if body.Error != "対象が見つかりません" {
+		t.Errorf("error = %q, want \"対象が見つかりません\"", body.Error)
 	}
 }
 
@@ -157,8 +157,8 @@ func TestHandler_Search_Validation(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.Error != "validation failed" {
-		t.Errorf("error = %q, want \"validation failed\"", body.Error)
+	if body.Error != "入力内容に誤りがあります" {
+		t.Errorf("error = %q, want \"入力内容に誤りがあります\"", body.Error)
 	}
 	if len(body.Details) == 0 {
 		t.Fatal("details is empty, want at least 1 entry")
@@ -204,8 +204,8 @@ func TestHandler_GetByYJCode_Validation(t *testing.T) {
 			if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
 				t.Fatalf("decode: %v", err)
 			}
-			if body.Error != "validation failed" {
-				t.Errorf("error = %q, want \"validation failed\"", body.Error)
+			if body.Error != "入力内容に誤りがあります" {
+				t.Errorf("error = %q, want \"入力内容に誤りがあります\"", body.Error)
 			}
 			if len(body.Details) == 0 {
 				t.Fatal("details is empty, want at least 1 entry")

@@ -2,92 +2,68 @@ package drug
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
+	"github.com/inouey1008/kusuri-api-poc/internal/errorx"
+	"github.com/inouey1008/kusuri-api-poc/internal/httpx"
 	"github.com/inouey1008/kusuri-api-poc/internal/validation"
 )
 
-// service は Handler が依存するユースケースの境界 (consumer-defined)。
-// テスト時はスタブに差し替えられる。
 type service interface {
 	Search(ctx context.Context, q string) ([]Drug, error)
 	GetByYJCode(ctx context.Context, yjCode string) (*Drug, error)
 }
 
-// Handler は医薬品エンドポイントのハンドラ群。
 type Handler struct {
-	svc service
+	service service
 }
 
-// NewHandler は service を受け取り Handler を返す。
-func NewHandler(svc service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(service service) *Handler {
+	return &Handler{service: service}
 }
 
-// Register は自身のルートを mux に登録する。router 側はモジュールを知らなくてよい。
-func (h *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /drugs", h.Search)
-	mux.HandleFunc("GET /drugs/{yjCode}", h.GetByYJCode)
-}
-
-// Search は GET /drugs?q=... を処理し、件数と一覧を JSON で返す。
-func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query().Get("q")
+func (handler *Handler) Search(writer http.ResponseWriter, request *http.Request) {
+	q := request.URL.Query().Get("q")
 
 	if errs := validation.Validate(searchRequest{Q: q}); errs != nil {
-		writeValidationError(w, errs)
+		errorx.Validation.WithDetails(errs).Write(writer)
 		return
 	}
 
-	items, err := h.svc.Search(r.Context(), q)
+	items, err := handler.service.Search(request.Context(), q)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		errorx.Internal.Write(writer)
 		return
 	}
 
 	responses := make([]drugResponse, len(items))
-	for i, d := range items {
-		responses[i] = toResponse(d)
+	for i, item := range items {
+		responses[i] = item.toResponse()
 	}
-	writeJSON(w, http.StatusOK, searchResponse{
+
+	httpx.WriteJSON(writer, http.StatusOK, searchResponse{
 		Total: len(responses),
 		Items: responses,
 	})
 }
 
-// GetByYJCode は GET /drugs/{yjCode} を処理する。見つからなければ 404。
-func (h *Handler) GetByYJCode(w http.ResponseWriter, r *http.Request) {
-	code := r.PathValue("yjCode")
+func (handler *Handler) GetByYJCode(writer http.ResponseWriter, request *http.Request) {
+	code := request.PathValue("yjCode")
 
 	if errs := validation.Validate(getRequest{YJCode: code}); errs != nil {
-		writeValidationError(w, errs)
+		errorx.Validation.WithDetails(errs).Write(writer)
 		return
 	}
 
-	d, err := h.svc.GetByYJCode(r.Context(), code)
+	item, err := handler.service.GetByYJCode(request.Context(), code)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		errorx.Internal.Write(writer)
 		return
 	}
-	if d == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+	if item == nil {
+		errorx.NotFound.Write(writer)
 		return
 	}
-	writeJSON(w, http.StatusOK, toResponse(*d))
-}
 
-// writeValidationError は 400 バリデーションエラーレスポンスを書き込む共通ヘルパ。
-func writeValidationError(w http.ResponseWriter, details []validation.FieldError) {
-	writeJSON(w, http.StatusBadRequest, map[string]any{
-		"error":   "validation failed",
-		"details": details,
-	})
-}
-
-// writeJSON はステータスコードと値を JSON でレスポンスに書き込む共通ヘルパ。
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	httpx.WriteJSON(writer, http.StatusOK, item.toResponse())
 }
