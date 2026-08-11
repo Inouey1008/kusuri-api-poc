@@ -76,6 +76,8 @@ type validationResponse struct {
 	} `json:"details"`
 }
 
+// バリデーションが handler に配線され 400 を返すことだけを確認する。
+// ルール自体の網羅は dto_test.go の TestSearchRequest_Validate が担う。
 func TestHandler_Search_Validation(t *testing.T) {
 	stub := &stubSvc{}
 	r := newRouter(stub)
