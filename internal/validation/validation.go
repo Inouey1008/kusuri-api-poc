@@ -27,7 +27,7 @@ type FieldError struct {
 	Message string `json:"message"`
 }
 
-// Validate は構造体 s を validate タグに基づいて検証する。
+// 構造体 s を validate タグに基づいて検証する。
 // 違反があれば []FieldError、なければ nil を返す。
 func Validate(s any) []FieldError {
 	err := validate.Struct(s)
