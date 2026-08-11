@@ -6,7 +6,7 @@ AWS Lambda (provided.al2023 / arm64) 上で Go + modernc.org/sqlite (純Go・cgo
 
 ## アーキテクチャ
 
-機能別パッケージ構成。`internal/` 直下を機能 (`features/`)・基盤 (`infra/`)・組み立て (`router/`) の 3 つに分け、1 機能 = 1 ディレクトリ、層はファイル名で表す。
+機能別パッケージ構成。`internal/` 直下を機能 (`features/`)・共通パッケージ (`sqlite/` `router/` `httpx/` `errorx/` `validation/`) に分け、1 機能 = 1 ディレクトリ、層はファイル名で表す。共通パッケージは種類が増えるまで `internal/` 直下にフラットに置く (外部バッキングサービスが複数になったら `infra/` のような分類を検討する)。
 
 ```
 main.go                        依存の組み立て (composition root)
@@ -15,11 +15,14 @@ main.go                        依存の組み立て (composition root)
    ▼ internal/features/drug    医薬品モジュール
         entity.go               Drug エンティティ (JSON タグなし)
         dto.go                  リクエスト/レスポンス DTO + 変換関数
-        handler.go              HTTP ⇔ JSON 変換 + バリデーション呼び出し + ルート登録
+        routes.go                ルート登録 (Register)
+        handler.go              HTTP ⇔ JSON 変換 + バリデーション呼び出し
         service.go              検索ロジック
         repository.go           Repository インターフェース
         repository_sqlite.go    sqliteRepository (database/sql + modernc)
-   ▼ internal/infra/sqlite     Connect(ctx, path): 読み取り専用で開いて PingContext で疎通確認
+   ▼ internal/sqlite     Connect(ctx, path): 読み取り専用で開いて PingContext で疎通確認
+   ▼ internal/httpx            WriteJSON (汎用 JSON 書き込み)
+   ▼ internal/errorx           Errorx (Internal, Validation) + WithDetails
    ▼ internal/validation       go-playground/validator/v10 ラッパ (FieldError / Validate)
 ```
 
@@ -42,20 +45,24 @@ main.go                        依存の組み立て (composition root)
     ├── features/
     │   └── drug/
     │       ├── entity.go               # Drug エンティティ
-    │       ├── dto.go                  # searchRequest / getRequest / drugResponse / searchResponse
+    │       ├── dto.go                  # searchRequest / drugResponse / searchResponse
     │       ├── repository.go           # Repository インターフェース
     │       ├── repository_sqlite.go    # sqliteRepository (database/sql 実装)
     │       ├── repository_sqlite_test.go
     │       ├── service.go              # 検索ロジック
     │       ├── service_test.go
-    │       ├── handler.go              # HTTP ハンドラ + Register
+    │       ├── routes.go               # ルート登録 (Register)
+    │       ├── handler.go              # HTTP ハンドラ
     │       ├── handler_test.go
     │       └── e2e_test.go             # フルスタック統合テスト
-    ├── infra/
-    │   └── sqlite/
-    │       └── sqlite.go               # Connect (immutable=1, ro) + ドライバ登録
+    ├── sqlite/
+    │   └── sqlite.go                   # Connect (immutable=1, ro) + ドライバ登録
     ├── router/
     │   └── router.go                   # ServeMux + middleware + Registerer
+    ├── httpx/
+    │   └── httpx.go                    # WriteJSON
+    ├── errorx/
+    │   └── errorx.go                   # Errorx (Internal, Validation) + WithDetails
     └── validation/
         ├── validation.go               # Validate / FieldError
         └── validation_test.go
@@ -76,14 +83,14 @@ main.go                        依存の組み立て (composition root)
 | フィールド | ルール |
 |---|---|
 | `q` (検索クエリ) | 任意・最大 100 文字 |
-| `yjCode` | 必須・12 桁英数字 |
 
 エラーレスポンス:
 
 ```json
 {
-  "error": "validation failed",
-  "details": [{"field": "yjCode", "message": "must be exactly 12 characters"}]
+  "code": "VALIDATION_FAILED",
+  "error": "入力内容に誤りがあります",
+  "details": [{"field": "q", "message": "must be at most 100 characters"}]
 }
 ```
 
@@ -144,24 +151,8 @@ GET /drugs?q=エゼチミブ
 
 ```
 HTTP 400
-{"error": "validation failed", "details": [{"field": "q", "message": "must be at most 100 characters"}]}
+{"code": "VALIDATION_FAILED", "error": "入力内容に誤りがあります", "details": [{"field": "q", "message": "must be at most 100 characters"}]}
 ```
-
-### GET /drugs/{yjCode}
-
-YJ コード (12 桁英数字) で 1 件取得。
-
-```
-GET /drugs/1234567890AB
-```
-
-レスポンス (200):
-
-```json
-{"yjCode": "1234567890AB", "name": "薬品名"}
-```
-
-見つからなければ 404、形式不正 (12 桁英数字以外) は 400。
 
 ## 検証結果
 

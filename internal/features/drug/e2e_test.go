@@ -39,12 +39,6 @@ type searchResponse struct {
 	} `json:"items"`
 }
 
-// itemResponse は GET /drugs/{yjCode} のレスポンス形状。
-type itemResponse struct {
-	YJCode string `json:"yjCode"`
-	Name   string `json:"name"`
-}
-
 func TestE2E_Search(t *testing.T) {
 	r := newHandler(t)
 
@@ -126,41 +120,4 @@ func TestE2E_Search(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestE2E_GetByYJCode(t *testing.T) {
-	r := newHandler(t)
-
-	t.Run("found_2189018F1043", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/drugs/2189018F1043", nil)
-		rec := httptest.NewRecorder()
-		r.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200", rec.Code)
-		}
-
-		var resp itemResponse
-		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-			t.Fatalf("decode: %v", err)
-		}
-
-		wantName := "エゼチミブ錠10mg「JG」"
-		if resp.Name != wantName {
-			t.Errorf("name = %q, want %q", resp.Name, wantName)
-		}
-		if resp.YJCode != "2189018F1043" {
-			t.Errorf("yjCode = %q, want %q", resp.YJCode, "2189018F1043")
-		}
-	})
-
-	t.Run("not_found_0000000X0000", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/drugs/0000000X0000", nil)
-		rec := httptest.NewRecorder()
-		r.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusNotFound {
-			t.Fatalf("status = %d, want 404", rec.Code)
-		}
-	})
 }

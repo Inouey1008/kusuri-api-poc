@@ -32,8 +32,6 @@ func (e Errorx) WithDetails(details []validation.FieldError) Errorx {
 var (
 	// 500
 	Internal = Errorx{Status: http.StatusInternalServerError, Code: "INTERNAL_ERROR", Message: "サーバー内部でエラーが発生しました"}
-	// 404
-	NotFound = Errorx{Status: http.StatusNotFound, Code: "NOT_FOUND", Message: "対象が見つかりません"}
 	// 400 (Details は WithDetails で追加すること)
 	Validation = Errorx{Status: http.StatusBadRequest, Code: "VALIDATION_FAILED", Message: "入力内容に誤りがあります"}
 )

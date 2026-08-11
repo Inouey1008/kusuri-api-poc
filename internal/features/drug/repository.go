@@ -6,6 +6,4 @@ import "context"
 type Repository interface {
 	// Search は name_normalized の部分一致で医薬品を検索する。件数上限は実装依存。
 	Search(ctx context.Context, q string) ([]Drug, error)
-	// FindByYJCode は YJ コードで1件を返す。見つからなければ (nil, nil)。
-	FindByYJCode(ctx context.Context, yjCode string) (*Drug, error)
 }

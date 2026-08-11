@@ -90,41 +90,6 @@ func TestSQLiteRepository_Search(t *testing.T) {
 	}
 }
 
-func TestSQLiteRepository_FindByYJCode(t *testing.T) {
-	path := setupDB(t)
-	db, err := sqlite.Connect(context.Background(), path)
-	if err != nil {
-		t.Fatalf("Connect: %v", err)
-	}
-	defer db.Close()
-
-	repo := drug.NewRepository(db)
-	ctx := context.Background()
-
-	t.Run("found", func(t *testing.T) {
-		got, err := repo.FindByYJCode(ctx, "2189018F1043")
-		if err != nil {
-			t.Fatalf("FindByYJCode: %v", err)
-		}
-		if got == nil {
-			t.Fatal("FindByYJCode: got nil, want non-nil")
-		}
-		if got.Name != "エゼチミブ錠10mg「JG」" {
-			t.Errorf("Name = %q, want %q", got.Name, "エゼチミブ錠10mg「JG」")
-		}
-	})
-
-	t.Run("not_found", func(t *testing.T) {
-		got, err := repo.FindByYJCode(ctx, "0000000X0000")
-		if err != nil {
-			t.Fatalf("FindByYJCode: %v", err)
-		}
-		if got != nil {
-			t.Errorf("FindByYJCode: got %+v, want nil", got)
-		}
-	})
-}
-
 func TestSQLiteRepository_ReadOnly(t *testing.T) {
 	path := setupDB(t)
 	db, err := sqlite.Connect(context.Background(), path)

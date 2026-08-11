@@ -21,8 +21,3 @@ type searchResponse struct {
 type searchRequest struct {
 	Q string `json:"q" validate:"omitempty,max=100"`
 }
-
-// getRequest は GET /drugs/{yjCode} の入力パラメータ。
-type getRequest struct {
-	YJCode string `json:"yjCode" validate:"required,len=12,alphanum"`
-}

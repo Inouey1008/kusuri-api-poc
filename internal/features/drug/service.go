@@ -17,8 +17,3 @@ func NewService(repo Repository) *Service {
 func (s *Service) Search(ctx context.Context, q string) ([]Drug, error) {
 	return s.repo.Search(ctx, q)
 }
-
-// GetByYJCode は YJ コード検索を Repository に委譲する。見つからなければ (nil, nil)。
-func (s *Service) GetByYJCode(ctx context.Context, yjCode string) (*Drug, error) {
-	return s.repo.FindByYJCode(ctx, yjCode)
-}

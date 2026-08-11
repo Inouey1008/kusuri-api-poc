@@ -3,7 +3,6 @@ package drug
 import (
 	"context"
 	"database/sql"
-	"errors"
 )
 
 // sqliteRepository は Repository の SQLite 実装。
@@ -39,21 +38,4 @@ func (r *sqliteRepository) Search(ctx context.Context, q string) ([]Drug, error)
 		results = append(results, d)
 	}
 	return results, rows.Err()
-}
-
-// FindByYJCode は YJ コードで1件を返す。該当なしは (nil, nil)。
-func (r *sqliteRepository) FindByYJCode(ctx context.Context, yjCode string) (*Drug, error) {
-	var d Drug
-	err := r.db.QueryRowContext(
-		ctx,
-		"SELECT yj_code, name FROM drug WHERE yj_code = ?",
-		yjCode,
-	).Scan(&d.YJCode, &d.Name)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &d, nil
 }
