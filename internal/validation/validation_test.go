@@ -3,81 +3,72 @@ package validation_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/inouey1008/kusuri-api-poc/internal/validation"
 )
 
-func TestValidate_Success(t *testing.T) {
-	type input struct {
-		Name string `json:"name" validate:"required,max=10"`
+func TestValidate(t *testing.T) {
+	testCases := []struct {
+		name            string
+		input           any
+		expectedField   string // 空文字なら成功 (nil) を期待
+		expectedMessage string // 空文字ならメッセージは検証しない
+	}{
+		{
+			name: `成功`,
+			input: struct {
+				Name string `json:"name" validate:"required,max=10"`
+			}{Name: "hello"},
+		},
+		{
+			name: `必須項目が空 ("required")`,
+			input: struct {
+				Name string `json:"name" validate:"required"`
+			}{Name: ""},
+			expectedField:   "name",
+			expectedMessage: "is required",
+		},
+		{
+			name: `上限文字数を超過 ("max")`,
+			input: struct {
+				Q string `json:"q" validate:"omitempty,max=5"`
+			}{Q: "toolong"},
+			expectedField: "q",
+		},
+		{
+			name: `文字数が一致しない ("len")`,
+			input: struct {
+				Code string `json:"code" validate:"required,len=12"`
+			}{Code: "short"},
+			expectedField:   "code",
+			expectedMessage: "must be exactly 12 characters",
+		},
+		{
+			name: `英数字以外の文字を含む ("alphanum")`,
+			input: struct {
+				Code string `json:"code" validate:"required,alphanum"`
+			}{Code: "abc!def"},
+			expectedField:   "code",
+			expectedMessage: "must be alphanumeric",
+		},
 	}
 
-	errs := validation.Validate(input{Name: "hello"})
-	if errs != nil {
-		t.Fatalf("want nil, got %v", errs)
-	}
-}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			errs := validation.Validate(testCase.input)
 
-func TestValidate_Required(t *testing.T) {
-	type input struct {
-		Name string `json:"name" validate:"required"`
-	}
+			if testCase.expectedField == "" {
+				assert.Nil(t, errs)
+				return
+			}
 
-	errs := validation.Validate(input{Name: ""})
-	if len(errs) == 0 {
-		t.Fatal("want errors, got nil")
-	}
-	if errs[0].Field != "name" {
-		t.Errorf("field = %q, want \"name\"", errs[0].Field)
-	}
-	if errs[0].Message != "is required" {
-		t.Errorf("message = %q, want \"is required\"", errs[0].Message)
-	}
-}
-
-func TestValidate_Max(t *testing.T) {
-	type input struct {
-		Q string `json:"q" validate:"omitempty,max=5"`
-	}
-
-	errs := validation.Validate(input{Q: "toolong"})
-	if len(errs) == 0 {
-		t.Fatal("want errors, got nil")
-	}
-	if errs[0].Field != "q" {
-		t.Errorf("field = %q, want \"q\"", errs[0].Field)
-	}
-}
-
-func TestValidate_Len(t *testing.T) {
-	type input struct {
-		Code string `json:"code" validate:"required,len=12"`
-	}
-
-	errs := validation.Validate(input{Code: "short"})
-	if len(errs) == 0 {
-		t.Fatal("want errors, got nil")
-	}
-	if errs[0].Field != "code" {
-		t.Errorf("field = %q, want \"code\"", errs[0].Field)
-	}
-	if errs[0].Message != "must be exactly 12 characters" {
-		t.Errorf("message = %q, want \"must be exactly 12 characters\"", errs[0].Message)
-	}
-}
-
-func TestValidate_Alphanum(t *testing.T) {
-	type input struct {
-		Code string `json:"code" validate:"required,alphanum"`
-	}
-
-	errs := validation.Validate(input{Code: "abc!def"})
-	if len(errs) == 0 {
-		t.Fatal("want errors, got nil")
-	}
-	if errs[0].Field != "code" {
-		t.Errorf("field = %q, want \"code\"", errs[0].Field)
-	}
-	if errs[0].Message != "must be alphanumeric" {
-		t.Errorf("message = %q, want \"must be alphanumeric\"", errs[0].Message)
+			if assert.NotEmpty(t, errs) {
+				assert.Equal(t, testCase.expectedField, errs[0].Field)
+				if testCase.expectedMessage != "" {
+					assert.Equal(t, testCase.expectedMessage, errs[0].Message)
+				}
+			}
+		})
 	}
 }
