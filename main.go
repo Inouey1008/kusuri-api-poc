@@ -10,8 +10,8 @@ import (
 	httpadapter "github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/features/drug"
-	"github.com/inouey1008/kusuri-api-poc/internal/infra/sqlite"
 	"github.com/inouey1008/kusuri-api-poc/internal/router"
+	"github.com/inouey1008/kusuri-api-poc/internal/sqlite"
 )
 
 // 同梱 DB の固定パス。
