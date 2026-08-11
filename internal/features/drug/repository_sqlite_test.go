@@ -9,7 +9,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/features/drug"
-	"github.com/inouey1008/kusuri-api-poc/internal/infra/sqlite"
+	"github.com/inouey1008/kusuri-api-poc/internal/sqlite"
 )
 
 // gen.sql と同一のスキーマ・データ。

@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/features/drug"
-	"github.com/inouey1008/kusuri-api-poc/internal/infra/sqlite"
 	"github.com/inouey1008/kusuri-api-poc/internal/router"
+	"github.com/inouey1008/kusuri-api-poc/internal/sqlite"
 )
 
 // newHandler は実 temp DB を使ったフルスタック配線を組み上げ、http.Handler を返す。
