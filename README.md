@@ -123,9 +123,13 @@ make run    # DB がなければ自動生成してから go run .
 ### テスト
 
 ```sh
-make test   # go test ./...
+make test   # go test -race ./...
 make vet    # go vet ./...
+make lint   # golangci-lint (設定は .golangci.yml)
 ```
+
+push / PR 時は GitHub Actions (`.github/workflows/ci.yml`) で gofmt・vet・lint・
+テスト・Lambda 向けクロスコンパイルが実行される。
 
 `internal/features/drug` のテストは一時 SQLite ファイルを `t.TempDir()` に生成するため、`assets/master.db` がなくても実行できる。E2E テスト (`e2e_test.go`) はルータ含むフルスタックを検証する。
 
@@ -137,21 +141,21 @@ make package    # bootstrap (arm64) + assets/master.db を fn.zip にまとめ�
 
 ## API
 
-### GET /drugs
+定義は [openapi.yaml](openapi.yaml) を正典とする (OpenAPI 3.1)。フロントエンドは
+`openapi-typescript` などでこのファイルから型を生成できる。
 
-薬品名の部分一致検索。`q` は省略可 (省略時は全件)。
+| メソッド | パス | 概要 |
+|---|---|---|
+| GET | `/drugs` | 薬品名の部分一致検索。`q` は省略可 (省略時は全件・最大 20 件) |
 
 ```
 GET /drugs?q=エゼチミブ
+
+{"total": 2, "items": [{"yjCode": "2189018F1043", "name": "エゼチミブ錠10mg「JG」"}]}
 ```
 
-レスポンス (200):
-
-```json
-{"total": 2, "items": [{"yjCode": "...", "name": "..."}]}
-```
-
-バリデーションエラー例 (`q` が 100 文字超):
+エラーは全エンドポイント共通で `code` / `error` / `details` を返す。`code` は言語非依存の
+識別子なので、クライアントの分岐にはこちらを使う。
 
 ```
 HTTP 400
