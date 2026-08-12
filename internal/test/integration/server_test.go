@@ -1,4 +1,4 @@
-package e2e_test
+package integration_test
 
 import (
 	"net/http"
@@ -9,7 +9,7 @@ import (
 	"github.com/inouey1008/kusuri-api-poc/internal/test/testrequest"
 )
 
-// feature 横断の振る舞い。未登録のパスは server の mux が 404 を返す
+// 未登録のパスは 404 を返す
 func TestNotFound(t *testing.T) {
 	recorder := testrequest.Get(t, "/unknown")
 

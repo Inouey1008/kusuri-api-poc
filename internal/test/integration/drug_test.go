@@ -1,4 +1,4 @@
-package e2e_test
+package integration_test
 
 import (
 	"encoding/json"
@@ -12,8 +12,6 @@ import (
 	"github.com/inouey1008/kusuri-api-poc/internal/test/testrequest"
 )
 
-// DB から取得した値が DTO を経て JSON になるまでを検証する
-// 検索条件そのものの網羅は drug/repository_sqlite_test.go が担う
 func TestSearch_Success(t *testing.T) {
 	recorder := testrequest.Get(t, "/drugs?q=エゼチミブ")
 
@@ -43,7 +41,6 @@ func TestSearch_Empty(t *testing.T) {
 	assert.JSONEq(t, `{"total":0,"items":[]}`, recorder.Body.String())
 }
 
-// バリデーションで弾かれた場合に errorx の応答が返ること
 func TestSearch_Validation(t *testing.T) {
 	recorder := testrequest.Get(t, "/drugs?q="+strings.Repeat("a", 101))
 

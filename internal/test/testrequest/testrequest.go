@@ -9,7 +9,7 @@ import (
 	"github.com/inouey1008/kusuri-api-poc/internal/test/testdb"
 )
 
-// 実 temp DB を使い、本番と同じ配線で組み上げた API に GET する
+// 実 DB を使い、本番と同じ構成の API に GET リクエストする
 func Get(t *testing.T, path string) *httptest.ResponseRecorder {
 	t.Helper()
 

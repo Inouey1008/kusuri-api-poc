@@ -70,11 +70,11 @@ main.go                        DB 接続 → server 組み立て → 起動 (Lam
     │   ├── validation.go               # Validate / FieldError
     │   └── validation_test.go
     └── test/
-        ├── e2e/
-        │   ├── drug_test.go            # GET /drugs のフルスタック検証
+        ├── integration/
+        │   ├── drug_test.go            # GET /drugs の結合検証
         │   └── server_test.go          # feature 横断 (404 など)
         ├── testdb/                     # 一時 SQLite の生成・接続
-        └── testrequest/                # 本番と同じ配線で組んだ API へのリクエスト
+        └── testrequest/                # 本番と同じ構成の API へのリクエスト
 ```
 
 ## SQLite 接続
@@ -136,7 +136,7 @@ make lint   # golangci-lint (設定は .golangci.yml)
 push / PR 時は GitHub Actions (`.github/workflows/ci.yml`) で gofmt・vet・lint・
 テスト・Lambda 向けクロスコンパイルが実行される。
 
-テストは一時 SQLite ファイルを `t.TempDir()` に生成するため、`assets/master.db` がなくても実行できる。E2E (`internal/test/e2e`) は `server.New(db)` で本番と同じ配線を組み上げて検証する。
+テストは一時 SQLite ファイルを `t.TempDir()` に生成するため、`assets/master.db` がなくても実行できる。結合テスト (`internal/test/integration`) は `server.New(db)` で本番と同じ構成を組み上げて検証する。
 
 ### Lambda デプロイ用パッケージ
 
