@@ -28,7 +28,7 @@ func newRouter(service *stubService) http.Handler {
 	return router.New(drug.NewHandler(service))
 }
 
-func TestHandler_Search(t *testing.T) {
+func TestHandler_Search_Success(t *testing.T) {
 	stub := &stubService{
 		searchResult: []drug.Drug{
 			{YJCode: "2189018F1043", Name: "エゼチミブ錠10mg「JG」"},
