@@ -6,13 +6,16 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	_ "modernc.org/sqlite"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/features/drug"
 	"github.com/inouey1008/kusuri-api-poc/internal/sqlite"
 )
 
-// gen.sql と同一のスキーマ・データ。
+// gen.sql と同一のスキーマ・データ
 const testSchema = `
 CREATE TABLE drug (
   yj_code         TEXT PRIMARY KEY,
@@ -26,81 +29,90 @@ INSERT INTO drug VALUES
 CREATE INDEX idx_norm ON drug(name_normalized);
 `
 
-// setupDB はテスト用の一時 SQLite ファイルを作成し、書き込み可能接続でスキーマとデータを投入して閉じる。
-// 戻り値は db ファイルのパス。Open (immutable/ro) での検証はテスト側で行う。
+// 一時 SQLite ファイルを作成し、書き込み可能接続でスキーマとデータを投入して閉じる
 func setupDB(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
 
-	rw, err := sql.Open("sqlite", "file:"+path)
-	if err != nil {
-		t.Fatalf("setup open: %v", err)
-	}
-	if _, err := rw.Exec(testSchema); err != nil {
-		rw.Close()
-		t.Fatalf("setup exec: %v", err)
-	}
-	if err := rw.Close(); err != nil {
-		t.Fatalf("setup close: %v", err)
-	}
+	db, err := sql.Open("sqlite", "file:"+path)
+	require.NoError(t, err)
+
+	_, err = db.Exec(testSchema)
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
 	return path
 }
 
-func TestSQLiteRepository_Search(t *testing.T) {
-	path := setupDB(t)
-	db, err := sqlite.Connect(context.Background(), path)
-	if err != nil {
-		t.Fatalf("Connect: %v", err)
-	}
-	defer db.Close()
+// 読み取り専用で接続した DB を返す
+func connectDB(t *testing.T) *sql.DB {
+	t.Helper()
 
-	repo := drug.NewRepository(db)
-	ctx := context.Background()
+	db, err := sqlite.Connect(context.Background(), setupDB(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
 
-	cases := []struct {
-		query    string
-		wantLen  int
-		wantCode string // 先頭件の yj_code。空文字はチェックしない。
+	return db
+}
+
+func TestSQLiteRepository_FindByName(t *testing.T) {
+	repository := drug.NewRepository(connectDB(t))
+
+	testCases := []struct {
+		name         string
+		query        string
+		expectedLen  int
+		expectedCode string // 先頭件の yj_code。空文字なら検証しない
 	}{
-		{"エゼチミブ", 2, "2189018F1043"},
-		{"セレコキシブ", 1, "1149037F2093"},
-		{"jg", 1, "2189018F1043"},
-		{"", 3, ""},
-		{"存在しない薬", 0, ""},
+		{
+			name:         `部分一致で複数件`,
+			query:        "エゼチミブ",
+			expectedLen:  2,
+			expectedCode: "2189018F1043",
+		},
+		{
+			name:         `部分一致で 1 件`,
+			query:        "セレコキシブ",
+			expectedLen:  1,
+			expectedCode: "1149037F2093",
+		},
+		{
+			name:         `正規化された名前で一致 (小文字)`,
+			query:        "jg",
+			expectedLen:  1,
+			expectedCode: "2189018F1043",
+		},
+		{
+			name:        `空クエリは全件`,
+			query:       "",
+			expectedLen: 3,
+		},
+		{
+			name:        `一致なしは 0 件`,
+			query:       "存在しない薬",
+			expectedLen: 0,
+		},
 	}
 
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.query, func(t *testing.T) {
-			got, err := repo.Search(ctx, tc.query)
-			if err != nil {
-				t.Fatalf("Search(%q): %v", tc.query, err)
-			}
-			if len(got) != tc.wantLen {
-				t.Errorf("Search(%q): got %d items, want %d", tc.query, len(got), tc.wantLen)
-			}
-			// 0件のときも nil でなく空スライスであること
-			if got == nil {
-				t.Errorf("Search(%q): got nil, want []drug.Drug{}", tc.query)
-			}
-			if tc.wantCode != "" && len(got) > 0 && got[0].YJCode != tc.wantCode {
-				t.Errorf("Search(%q): got[0].YJCode = %q, want %q", tc.query, got[0].YJCode, tc.wantCode)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			got, err := repository.FindByName(context.Background(), testCase.query)
+
+			require.NoError(t, err)
+			assert.NotNil(t, got) // 0 件でも nil ではなく空配列
+			require.Len(t, got, testCase.expectedLen)
+
+			if testCase.expectedCode != "" {
+				assert.Equal(t, testCase.expectedCode, got[0].YJCode)
 			}
 		})
 	}
 }
 
 func TestSQLiteRepository_ReadOnly(t *testing.T) {
-	path := setupDB(t)
-	db, err := sqlite.Connect(context.Background(), path)
-	if err != nil {
-		t.Fatalf("Connect: %v", err)
-	}
-	defer db.Close()
+	db := connectDB(t)
 
-	// immutable=1 が有効な場合、書き込みはエラーになる。
-	_, err = db.Exec("INSERT INTO drug VALUES ('9999999X9999','テスト薬','テスト薬')")
-	if err == nil {
-		t.Fatal("expected error on INSERT to immutable=1 db, got nil")
-	}
+	_, err := db.Exec("INSERT INTO drug VALUES ('9999999X9999','テスト薬','テスト薬')")
+
+	assert.Error(t, err) // immutable=1 のため書き込みは失敗する
 }

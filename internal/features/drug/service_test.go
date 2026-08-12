@@ -17,7 +17,7 @@ type stubRepository struct {
 	searchQuery  string
 }
 
-func (s *stubRepository) Search(ctx context.Context, q string) ([]drug.Drug, error) {
+func (s *stubRepository) FindByName(ctx context.Context, q string) ([]drug.Drug, error) {
 	s.searchQuery = q
 	return s.searchResult, s.searchErr
 }

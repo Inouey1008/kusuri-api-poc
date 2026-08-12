@@ -11,5 +11,5 @@ func NewService(repository Repository) *Service {
 }
 
 func (service *Service) Search(ctx context.Context, q string) ([]Drug, error) {
-	return service.repository.Search(ctx, q)
+	return service.repository.FindByName(ctx, q)
 }
