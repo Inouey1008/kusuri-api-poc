@@ -11,9 +11,9 @@ test:
 vet:
 	go vet ./...
 
-# golangci-lint (設定は .golangci.yml)
+# golangci-lint (設定は .golangci.yml)。CI と同じバージョンを使う
 lint:
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run ./...
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.2 run ./...
 
 # 検証用 SQLite を生成 (ダミーデータ3件。本番マスタは使わない)
 # 再実行できるよう作り直す

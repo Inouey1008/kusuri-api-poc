@@ -29,10 +29,11 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      # .golangci.yml は v2 形式のため action / lint 本体とも v2 系を使う
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: latest
+          version: v2.6.2
 
       - name: go test
         run: go test -race ./...
