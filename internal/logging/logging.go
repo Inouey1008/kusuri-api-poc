@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// CloudWatch Logs で検索・フィルタできるよう JSON で出力する
 func Init() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 }
@@ -23,7 +22,6 @@ func (recorder *statusRecorder) WriteHeader(status int) {
 	recorder.ResponseWriter.WriteHeader(status)
 }
 
-// メソッド・パス・ステータス・所要時間をログ出力する
 func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		start := time.Now()

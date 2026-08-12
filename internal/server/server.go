@@ -10,7 +10,6 @@ import (
 
 type Middleware func(http.Handler) http.Handler
 
-// 自身のルートを mux に登録できるモジュール
 type Registerer interface {
 	Register(mux *http.ServeMux)
 }
@@ -45,8 +44,7 @@ func newServer(registerers []Registerer, middlewares []Middleware) *Server {
 		registerer.Register(mux)
 	}
 
-	// middlewares[0] から順に実行されるよう、末尾から包んでいく
-	// 例: {A, B} の場合 A(B(mux)) となり、A → B → mux の順に処理される
+	// middlewares の順に実行されるよう、末尾から包んでいく
 	handler := http.Handler(mux)
 	for i := len(middlewares) - 1; i >= 0; i-- {
 		handler = middlewares[i](handler)

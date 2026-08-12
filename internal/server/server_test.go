@@ -11,7 +11,6 @@ import (
 	"github.com/inouey1008/kusuri-api-poc/internal/server"
 )
 
-// 指定パスに固定レスポンスを返すルートを登録する
 type stubRegisterer struct {
 	path string
 	body string
@@ -23,7 +22,6 @@ func (s *stubRegisterer) Register(mux *http.ServeMux) {
 	})
 }
 
-// 呼ばれた順に order へ自身の名前を追記する middleware を作る
 func recordingMiddleware(name string, order *[]string) server.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
