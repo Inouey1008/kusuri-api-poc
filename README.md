@@ -11,16 +11,12 @@ API 定義は [openapi.yaml](openapi.yaml) を参照。
 - Go 1.26.5 (mise で管理)
 - sqlite3 (システムのものを使用)
 
-```sh
-mise install
-```
-
 ## セットアップ
 
-検証用 SQLite (ダミーデータ 3 件) を生成する。
+ツールの導入・依存の取得・ローカル DB の作成をまとめて行う。
 
 ```sh
-make gen-db
+make setup
 ```
 
 ## ローカルサーバー起動
@@ -38,30 +34,22 @@ curl 'http://localhost:8080/drugs?q=エゼチミブ'
 ## デプロイ
 
 ```sh
-make package    # bootstrap (arm64) + assets/master.db を fn.zip にまとめる
+make zip
 ```
+
+`build` (bootstrap の生成) と `gen-db` を実行し、両者を `fn.zip` にまとめる。
 
 生成した `fn.zip` を Lambda にアップロードする。ハンドラは `bootstrap`、ランタイムは `provided.al2023`、アーキテクチャは `arm64`。
 
 ## その他コマンド
 
 ```sh
-make test     # go test -race ./...
-make vet      # go vet ./...
-make lint     # golangci-lint (設定は .golangci.yml)
-make build    # Lambda 用 arm64 バイナリのみビルド
-make clean    # 生成物を削除
+make test      # go test -race ./...
+make format    # gofmt -w .
+make lint      # golangci-lint (設定は .golangci.yml)
+make gen-db    # ローカル DB を作り直す
+make build     # bootstrap のみ生成 (クロスコンパイルの確認用)
+make clean     # 生成物とビルド/テストキャッシュを削除
 ```
 
-テストは一時 SQLite を `t.TempDir()` に生成するため、`assets/master.db` がなくても実行できる。push / PR 時は GitHub Actions で gofmt・vet・lint・テスト・クロスコンパイルが走る。
-
-## 検証結果
-
-後日 AWS 認証後に追記。
-
-| 項目 | 結果 |
-|---|---|
-| ローカル: ビルド可否 | OK (`make vet` / `make build`) |
-| ローカル: テスト結果 | PASS (`make test`) |
-| AWS: Init Duration | 未実施 |
-| AWS: Duration | 未実施 |
+テストは一時 SQLite を `t.TempDir()` に生成するため、`assets/master.db` がなくても実行できる。push / PR 時は GitHub Actions で gofmt・lint・テスト・クロスコンパイルが走る。

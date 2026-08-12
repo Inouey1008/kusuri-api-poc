@@ -17,17 +17,11 @@ jobs:
       # mise.toml の go バージョンをそのまま使う
       - uses: jdx/mise-action@v2
 
-      - name: gofmt
+      # 差分が出たら make format の実行漏れ
+      - name: format
         run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "gofmt が必要なファイル:"
-            echo "$unformatted"
-            exit 1
-          fi
-
-      - name: go vet
-        run: go vet ./...
+          make format
+          git diff --exit-code
 
       # 配布バイナリは Go 1.25 ビルドで 1.26 のコードを解析できないため、
       # go run でこの環境の Go (1.26.5) からビルドして実行する
@@ -35,7 +29,7 @@ jobs:
         run: make lint
 
       - name: go test
-        run: go test -race ./...
+        run: make test
 
       # Lambda 向けのクロスコンパイルが通ることを確認する
       - name: build
