@@ -6,12 +6,13 @@ AWS Lambda (provided.al2023 / arm64) 上で Go + modernc.org/sqlite (純Go・cgo
 
 ## アーキテクチャ
 
-機能別パッケージ構成。`internal/` 直下を機能 (`features/`)・共通パッケージ (`sqlite/` `router/` `httpx/` `errorx/` `validation/`) に分け、1 機能 = 1 ディレクトリ、層はファイル名で表す。共通パッケージは種類が増えるまで `internal/` 直下にフラットに置く (外部バッキングサービスが複数になったら `infra/` のような分類を検討する)。
+機能別パッケージ構成。`internal/` 直下を機能 (`features/`)・共通パッケージ (`sqlite/` `server/` `logging/` `httpx/` `errorx/` `validation/`) に分け、1 機能 = 1 ディレクトリ、層はファイル名で表す。共通パッケージは種類が増えるまで `internal/` 直下にフラットに置く (外部バッキングサービスが複数になったら `infra/` のような分類を検討する)。
 
 ```
-main.go                        依存の組み立て (composition root)
-   ▼ internal/router           ServeMux (Go 1.22 method+path) + ログ middleware
-   │                           Registerer 経由で登録するためモジュールを import しない
+main.go                        DB 接続 → server 組み立て → 起動 (Lambda/ローカル分岐)
+   ▼ internal/server           依存の組み立て (composition root) + ServeMux + middleware
+   │                           New(db) が feature と middleware をまとめて配線する
+   ▼ internal/logging          logging.Middleware
    ▼ internal/features/drug    医薬品モジュール
         entity.go               Drug エンティティ (JSON タグなし)
         dto.go                  リクエスト/レスポンス DTO + 変換関数
@@ -27,8 +28,9 @@ main.go                        依存の組み立て (composition root)
 ```
 
 拡張ポイント:
-- **エンドポイント追加**: `drug/handler.go` にハンドラを足し、`Register` に 1 行加える。router は無変更。
-- **モジュール追加**: `internal/features/` 配下に `drug/` と同じ構成のディレクトリを新設し、`main.go` で `router.New` に渡す。既存モジュールには触らない。
+- **エンドポイント追加**: `drug/handler.go` にハンドラを足し、`Register` に 1 行加える。server は無変更。
+- **モジュール追加**: `internal/features/` 配下に `drug/` と同じ構成のディレクトリを新設し、`server.New` の `[]Registerer` に 1 行足す。既存モジュールには触らない。
+- **middleware 追加**: `internal/` 配下にパッケージを作り、`func Middleware(http.Handler) http.Handler` を公開して `server.New` の `[]Middleware` に 1 行足す。先に定義したものが外側 (先に実行される)。
 - **DB 差し替え**: `repository_sqlite.go` を同じ `NewRepository` を持つ実装ファイルに差し替える。具象型は非公開なので service/handler/main のいずれも無変更。
 - **ローカル実行**: `AWS_LAMBDA_RUNTIME_API` が未セットのときは `:8080` で HTTP サーバを起動する (`PORT` で変更可)。Lambda アダプタを外す必要はない。
 
@@ -57,8 +59,10 @@ main.go                        依存の組み立て (composition root)
     │       └── e2e_test.go             # フルスタック統合テスト
     ├── sqlite/
     │   └── sqlite.go                   # Connect (immutable=1, ro) + ドライバ登録
-    ├── router/
-    │   └── router.go                   # ServeMux + middleware + Registerer
+    ├── server/
+    │   └── server.go                   # 依存の組み立て + ServeMux + middleware チェーン
+    ├── logging/
+    │   └── logging.go                  # メソッド・パス・所要時間のログ middleware
     ├── httpx/
     │   └── httpx.go                    # WriteJSON
     ├── errorx/

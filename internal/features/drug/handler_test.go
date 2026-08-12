@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/features/drug"
-	"github.com/inouey1008/kusuri-api-poc/internal/router"
+	"github.com/inouey1008/kusuri-api-poc/internal/server"
 )
 
 type stubService struct {
@@ -25,7 +25,7 @@ func (s *stubService) Search(ctx context.Context, q string) ([]drug.Drug, error)
 }
 
 func newRouter(service *stubService) http.Handler {
-	return router.New(drug.NewHandler(service))
+	return server.NewWith([]server.Registerer{drug.NewHandler(service)}, nil)
 }
 
 func TestHandler_Search_Success(t *testing.T) {

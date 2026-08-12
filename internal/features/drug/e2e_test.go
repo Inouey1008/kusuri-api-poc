@@ -1,33 +1,18 @@
 package drug_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/inouey1008/kusuri-api-poc/internal/features/drug"
-	"github.com/inouey1008/kusuri-api-poc/internal/router"
-	"github.com/inouey1008/kusuri-api-poc/internal/sqlite"
+	"github.com/inouey1008/kusuri-api-poc/internal/server"
 )
 
-// newHandler は実 temp DB を使ったフルスタック配線を組み上げ、http.Handler を返す。
-// db は t.Cleanup で Close される。
+// 実 temp DB を使い、本番と同じ配線でフルスタックを組み上げる
 func newHandler(t *testing.T) http.Handler {
 	t.Helper()
-	path := setupDB(t)
-
-	db, err := sqlite.Connect(context.Background(), path)
-	if err != nil {
-		t.Fatalf("sqlite.Connect: %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-
-	repo := drug.NewRepository(db)
-	svc := drug.NewService(repo)
-	h := drug.NewHandler(svc)
-	return router.New(h)
+	return server.New(connectDB(t))
 }
 
 // searchResponse は GET /drugs のレスポンス形状。
