@@ -19,16 +19,19 @@ type Server struct {
 	handler http.Handler
 }
 
-// 依存を組み立て、ルートと middleware を登録した Server を返す
 func New(db *sql.DB) *Server {
-	return newServer(
-		[]Registerer{
-			drug.NewHandler(drug.NewService(drug.NewRepository(db))),
-		},
-		[]Middleware{
-			logging.Middleware,
-		},
-	)
+	drugRepository := drug.NewRepository(db)
+	drugService := drug.NewService(drugRepository)
+	drugHandler := drug.NewHandler(drugService)
+
+	registerers := []Registerer{
+		drugHandler,
+	}
+	middlewares := []Middleware{
+		logging.Middleware,
+	}
+
+	return newServer(registerers, middlewares)
 }
 
 // テストからスタブを差し込むための入口
@@ -42,7 +45,8 @@ func newServer(registerers []Registerer, middlewares []Middleware) *Server {
 		registerer.Register(mux)
 	}
 
-	// 先に定義した middleware が外側 (先に実行される)
+	// middlewares[0] から順に実行されるよう、末尾から包んでいく
+	// 例: {A, B} の場合 A(B(mux)) となり、A → B → mux の順に処理される
 	handler := http.Handler(mux)
 	for i := len(middlewares) - 1; i >= 0; i-- {
 		handler = middlewares[i](handler)
