@@ -1,16 +1,42 @@
 package logging
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 )
 
-// メソッド・パス・所要時間をログ出力する
+// CloudWatch Logs で検索・フィルタできるよう JSON で出力する
+func Init() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+}
+
+// ステータスコードを記録するために WriteHeader を捕捉する
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (recorder *statusRecorder) WriteHeader(status int) {
+	recorder.status = status
+	recorder.ResponseWriter.WriteHeader(status)
+}
+
+// メソッド・パス・ステータス・所要時間をログ出力する
 func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(writer, request)
-		log.Printf("%s %s %s", request.Method, request.URL.Path, time.Since(start))
+
+		// WriteHeader が呼ばれない場合、net/http は 200 を返す
+		recorder := &statusRecorder{ResponseWriter: writer, status: http.StatusOK}
+		next.ServeHTTP(recorder, request)
+
+		slog.InfoContext(request.Context(), "request",
+			slog.String("method", request.Method),
+			slog.String("path", request.URL.Path),
+			slog.Int("status", recorder.status),
+			slog.Duration("duration", time.Since(start)),
+		)
 	})
 }
