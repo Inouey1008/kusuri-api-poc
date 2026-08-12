@@ -29,11 +29,10 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      # .golangci.yml は v2 形式のため action / lint 本体とも v2 系を使う
+      # 配布バイナリは Go 1.25 ビルドで 1.26 のコードを解析できないため、
+      # go run でこの環境の Go (1.26.5) からビルドして実行する
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: v2.6.2
+        run: make lint
 
       - name: go test
         run: go test -race ./...
