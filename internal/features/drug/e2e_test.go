@@ -4,7 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/server"
 )
@@ -15,94 +19,70 @@ func newHandler(t *testing.T) http.Handler {
 	return server.New(connectDB(t))
 }
 
-// searchResponse は GET /drugs のレスポンス形状。
-type searchResponse struct {
-	Total int `json:"total"`
-	Items []struct {
-		YJCode string `json:"yjCode"`
-		Name   string `json:"name"`
-	} `json:"items"`
+func request(t *testing.T, path string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	recorder := httptest.NewRecorder()
+	newHandler(t).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+
+	return recorder
 }
 
-func TestE2E_Search(t *testing.T) {
-	r := newHandler(t)
+// DB から取得した値が DTO を経て JSON になるまでを検証する
+// 検索条件そのものの網羅は repository_sqlite_test.go が担う
+func TestE2E_Search_Success(t *testing.T) {
+	recorder := request(t, "/drugs?q=エゼチミブ")
 
-	cases := []struct {
-		name      string
-		q         string
-		wantTotal int
-		wantCodes []string // items に含まれるべき YJCode の集合 (順序不問)
-	}{
-		{
-			name:      "エゼチミブで2件",
-			q:         "エゼチミブ",
-			wantTotal: 2,
-			wantCodes: []string{"2189018F1043", "2189018F1094"},
-		},
-		{
-			name:      "セレコキシブで1件",
-			q:         "セレコキシブ",
-			wantTotal: 1,
-			wantCodes: []string{"1149037F2093"},
-		},
-		{
-			name:      "空クエリで全3件",
-			q:         "",
-			wantTotal: 3,
-			wantCodes: nil, // コード一致チェックは省略
-		},
-		{
-			name:      "存在しない薬で0件",
-			q:         "存在しない薬",
-			wantTotal: 0,
-			wantCodes: nil,
-		},
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+
+	var body struct {
+		Total int `json:"total"`
+		Items []struct {
+			YJCode string `json:"yjCode"`
+			Name   string `json:"name"`
+		} `json:"items"`
 	}
+	require.NoError(t, json.NewDecoder(recorder.Body).Decode(&body))
 
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/drugs?q="+tc.q, nil)
-			rec := httptest.NewRecorder()
-			r.ServeHTTP(rec, req)
+	require.Len(t, body.Items, 2)
+	assert.Equal(t, 2, body.Total)
+	assert.Equal(t, "2189018F1043", body.Items[0].YJCode)
+	assert.Equal(t, "エゼチミブ錠10mg「JG」", body.Items[0].Name)
+}
 
-			if rec.Code != http.StatusOK {
-				t.Fatalf("status = %d, want 200", rec.Code)
-			}
-			ct := rec.Header().Get("Content-Type")
-			if ct != "application/json" {
-				t.Errorf("Content-Type = %q, want application/json", ct)
-			}
+// 0 件でも items が null にならないこと (JSON の形が崩れない)
+func TestE2E_Search_Empty(t *testing.T) {
+	recorder := request(t, "/drugs?q=存在しない薬")
 
-			var resp searchResponse
-			if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-				t.Fatalf("decode: %v", err)
-			}
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.JSONEq(t, `{"total":0,"items":[]}`, recorder.Body.String())
+}
 
-			if resp.Total != tc.wantTotal {
-				t.Errorf("total = %d, want %d", resp.Total, tc.wantTotal)
-			}
-			if len(resp.Items) != tc.wantTotal {
-				t.Errorf("len(items) = %d, want %d", len(resp.Items), tc.wantTotal)
-			}
+// バリデーションで弾かれた場合に errorx の応答が返ること
+func TestE2E_Search_Validation(t *testing.T) {
+	recorder := request(t, "/drugs?q="+strings.Repeat("a", 101))
 
-			// 0件のとき items は nil でなく空配列であることも検証する
-			if tc.wantTotal == 0 && resp.Items == nil {
-				t.Error("items is nil, want empty array")
-			}
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
 
-			// 期待 YJCode が items に含まれるか確認する
-			if len(tc.wantCodes) > 0 {
-				codeSet := make(map[string]bool, len(resp.Items))
-				for _, item := range resp.Items {
-					codeSet[item.YJCode] = true
-				}
-				for _, code := range tc.wantCodes {
-					if !codeSet[code] {
-						t.Errorf("YJCode %q not found in items", code)
-					}
-				}
-			}
-		})
+	var body struct {
+		Code    string `json:"code"`
+		Message string `json:"error"`
+		Details []struct {
+			Field string `json:"field"`
+		} `json:"details"`
 	}
+	require.NoError(t, json.NewDecoder(recorder.Body).Decode(&body))
+
+	assert.Equal(t, "VALIDATION_FAILED", body.Code)
+	assert.NotEmpty(t, body.Message)
+	require.NotEmpty(t, body.Details)
+	assert.Equal(t, "q", body.Details[0].Field)
+}
+
+// 未登録のパスは server の mux が 404 を返す
+func TestE2E_NotFound(t *testing.T) {
+	recorder := request(t, "/unknown")
+
+	assert.Equal(t, http.StatusNotFound, recorder.Code)
 }

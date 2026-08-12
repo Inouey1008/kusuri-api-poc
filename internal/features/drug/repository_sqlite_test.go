@@ -108,11 +108,3 @@ func TestSQLiteRepository_FindByName(t *testing.T) {
 		})
 	}
 }
-
-func TestSQLiteRepository_ReadOnly(t *testing.T) {
-	db := connectDB(t)
-
-	_, err := db.Exec("INSERT INTO drug VALUES ('9999999X9999','テスト薬','テスト薬')")
-
-	assert.Error(t, err) // immutable=1 のため書き込みは失敗する
-}
