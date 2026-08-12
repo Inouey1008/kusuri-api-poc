@@ -28,7 +28,7 @@ func main() {
 
 	db, err := sqlite.Connect(context.Background(), dbPath)
 	if err != nil {
-		slog.Error("DB への接続に失敗しました", slog.Any("error", err), slog.String("path", dbPath))
+		slog.Error("failed to connect database", slog.Any("error", err), slog.String("path", dbPath))
 		os.Exit(1)
 	}
 	defer func() { _ = db.Close() }()
@@ -42,7 +42,7 @@ func main() {
 	}
 
 	if err := listenAndServe(handler); err != nil {
-		slog.Error("サーバーが異常終了しました", slog.Any("error", err))
+		slog.Error("server error", slog.Any("error", err))
 		os.Exit(1)
 	}
 }
@@ -60,7 +60,7 @@ func listenAndServe(handler http.Handler) error {
 
 	errs := make(chan error, 1)
 	go func() {
-		slog.Info("ローカルサーバーを起動しました", slog.String("port", port))
+		slog.Info("listening", slog.String("port", port))
 		if err := httpServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			errs <- err
 		}
@@ -72,7 +72,7 @@ func listenAndServe(handler http.Handler) error {
 	case <-ctx.Done():
 	}
 
-	slog.Info("シャットダウンしています")
+	slog.Info("shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
