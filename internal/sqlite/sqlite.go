@@ -16,7 +16,7 @@ func Connect(ctx context.Context, dbPath string) (*sql.DB, error) {
 	}
 	// 起動時に実接続まで確立し、DB 欠損・破損を早期に検出する (fail-fast)
 	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	return db, nil

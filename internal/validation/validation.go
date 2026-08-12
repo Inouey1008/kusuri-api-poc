@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -35,14 +36,14 @@ func Validate(s any) []FieldError {
 		return nil
 	}
 
-	errors, ok := err.(validator.ValidationErrors)
-	if !ok {
+	var validationErrors validator.ValidationErrors
+	if !errors.As(err, &validationErrors) {
 		// 予期しないエラー型はそのまま返す
 		return []FieldError{{Field: "", Message: err.Error()}}
 	}
 
-	errs := make([]FieldError, 0, len(errors))
-	for _, e := range errors {
+	errs := make([]FieldError, 0, len(validationErrors))
+	for _, e := range validationErrors {
 		errs = append(errs, FieldError{
 			Field:   e.Field(),
 			Message: buildMessage(e),

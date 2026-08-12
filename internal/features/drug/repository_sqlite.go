@@ -24,7 +24,7 @@ func (repository *sqliteRepository) FindByName(ctx context.Context, q string) ([
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	results := []Drug{}
 	for rows.Next() {
