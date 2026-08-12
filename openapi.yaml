@@ -1,0 +1,159 @@
+openapi: 3.1.0
+
+info:
+  title: kusuri-api-poc
+  version: 0.1.0
+  description: |
+    医薬品マスタの検索 API (PoC)。
+
+    AWS Lambda Function URLs 上で動作する。データは同梱の SQLite (読み取り専用) を参照する。
+
+    認証は未実装 (Function URLs の AuthType: NONE を想定)。
+
+servers:
+  - url: http://localhost:8080
+    description: ローカル (make run)
+  - url: https://{functionUrlId}.lambda-url.{region}.on.aws
+    description: Lambda Function URLs
+    variables:
+      functionUrlId:
+        default: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      region:
+        default: ap-northeast-1
+
+paths:
+  /drugs:
+    get:
+      summary: 医薬品検索
+      description: |
+        薬品名の部分一致で検索する。照合は正規化済みの名前に対して行うため、
+        `jg` のような小文字・カナ抜きの入力でも一致する。
+
+        最大 20 件を返す。ページングは未対応。
+      operationId: searchDrugs
+      security: [] # 認証不要
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: 検索クエリ。省略時は全件 (最大 20 件) を返す。
+          schema:
+            type: string
+            maxLength: 100
+          examples:
+            keyword:
+              summary: 薬品名の一部
+              value: エゼチミブ
+            empty:
+              summary: 省略 (全件)
+              value: ""
+      responses:
+        "200":
+          description: 検索成功。該当が 0 件でも 200 を返す。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+              examples:
+                found:
+                  summary: 2 件ヒット
+                  value:
+                    total: 2
+                    items:
+                      - yjCode: "2189018F1043"
+                        name: エゼチミブ錠10mg「JG」
+                      - yjCode: "2189018F1094"
+                        name: エゼチミブ錠10mg「YD」
+                empty:
+                  summary: 0 件 (items は null ではなく空配列)
+                  value:
+                    total: 0
+                    items: []
+        "400":
+          description: 入力値が不正
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VALIDATION_FAILED
+                error: 入力内容に誤りがあります
+                details:
+                  - field: q
+                    message: must be at most 100 characters
+        "500":
+          description: サーバー内部エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: INTERNAL_ERROR
+                error: サーバー内部でエラーが発生しました
+
+components:
+  schemas:
+    Drug:
+      type: object
+      required: [yjCode, name]
+      properties:
+        yjCode:
+          type: string
+          description: YJ コード (12 桁英数字)
+          example: "2189018F1043"
+        name:
+          type: string
+          description: 薬品名
+          example: エゼチミブ錠10mg「JG」
+
+    SearchResponse:
+      type: object
+      required: [total, items]
+      properties:
+        total:
+          type: integer
+          description: items の件数。総ヒット数ではない (最大 20)。
+          example: 2
+        items:
+          type: array
+          description: 該当が 0 件でも null にはならず空配列を返す。
+          items:
+            $ref: "#/components/schemas/Drug"
+
+    Error:
+      type: object
+      required: [code, error]
+      description: |
+        全エンドポイント共通のエラー形式。
+
+        `code` は言語非依存の識別子で、クライアントの分岐にはこちらを使う。
+        `error` は表示用の文言であり、変更される可能性がある。
+      properties:
+        code:
+          type: string
+          description: エラー種別の識別子
+          enum:
+            - VALIDATION_FAILED
+            - INTERNAL_ERROR
+        error:
+          type: string
+          description: 人間向けのエラーメッセージ (日本語)
+          example: 入力内容に誤りがあります
+        details:
+          type: array
+          description: バリデーション違反の詳細。VALIDATION_FAILED のときのみ含まれる。
+          items:
+            $ref: "#/components/schemas/FieldError"
+
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          description: 違反したフィールド名 (リクエストのパラメータ名と一致)
+          example: q
+        message:
+          type: string
+          description: 違反内容 (英語)
+          example: must be at most 100 characters
