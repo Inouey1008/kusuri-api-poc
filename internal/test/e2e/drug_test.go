@@ -1,37 +1,21 @@
-package drug_test
+package e2e_test
 
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/inouey1008/kusuri-api-poc/internal/server"
+	"github.com/inouey1008/kusuri-api-poc/internal/test/testrequest"
 )
 
-// 実 temp DB を使い、本番と同じ配線でフルスタックを組み上げる
-func newHandler(t *testing.T) http.Handler {
-	t.Helper()
-	return server.New(connectDB(t))
-}
-
-func request(t *testing.T, path string) *httptest.ResponseRecorder {
-	t.Helper()
-
-	recorder := httptest.NewRecorder()
-	newHandler(t).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
-
-	return recorder
-}
-
 // DB から取得した値が DTO を経て JSON になるまでを検証する
-// 検索条件そのものの網羅は repository_sqlite_test.go が担う
-func TestE2E_Search_Success(t *testing.T) {
-	recorder := request(t, "/drugs?q=エゼチミブ")
+// 検索条件そのものの網羅は drug/repository_sqlite_test.go が担う
+func TestSearch_Success(t *testing.T) {
+	recorder := testrequest.Get(t, "/drugs?q=エゼチミブ")
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
@@ -52,16 +36,16 @@ func TestE2E_Search_Success(t *testing.T) {
 }
 
 // 0 件でも items が null にならないこと (JSON の形が崩れない)
-func TestE2E_Search_Empty(t *testing.T) {
-	recorder := request(t, "/drugs?q=存在しない薬")
+func TestSearch_Empty(t *testing.T) {
+	recorder := testrequest.Get(t, "/drugs?q=存在しない薬")
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	assert.JSONEq(t, `{"total":0,"items":[]}`, recorder.Body.String())
 }
 
 // バリデーションで弾かれた場合に errorx の応答が返ること
-func TestE2E_Search_Validation(t *testing.T) {
-	recorder := request(t, "/drugs?q="+strings.Repeat("a", 101))
+func TestSearch_Validation(t *testing.T) {
+	recorder := testrequest.Get(t, "/drugs?q="+strings.Repeat("a", 101))
 
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 
@@ -78,11 +62,4 @@ func TestE2E_Search_Validation(t *testing.T) {
 	assert.NotEmpty(t, body.Message)
 	require.NotEmpty(t, body.Details)
 	assert.Equal(t, "q", body.Details[0].Field)
-}
-
-// 未登録のパスは server の mux が 404 を返す
-func TestE2E_NotFound(t *testing.T) {
-	recorder := request(t, "/unknown")
-
-	assert.Equal(t, http.StatusNotFound, recorder.Code)
 }

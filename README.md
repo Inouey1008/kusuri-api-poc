@@ -55,8 +55,7 @@ main.go                        DB 接続 → server 組み立て → 起動 (Lam
     │       ├── service_test.go
     │       ├── routes.go               # ルート登録 (Register)
     │       ├── handler.go              # HTTP ハンドラ
-    │       ├── handler_test.go
-    │       └── e2e_test.go             # フルスタック統合テスト
+    │       └── handler_test.go
     ├── sqlite/
     │   └── sqlite.go                   # Connect (immutable=1, ro) + ドライバ登録
     ├── server/
@@ -67,9 +66,15 @@ main.go                        DB 接続 → server 組み立て → 起動 (Lam
     │   └── httpx.go                    # WriteJSON
     ├── errorx/
     │   └── errorx.go                   # Errorx (Internal, Validation) + WithDetails
-    └── validation/
-        ├── validation.go               # Validate / FieldError
-        └── validation_test.go
+    ├── validation/
+    │   ├── validation.go               # Validate / FieldError
+    │   └── validation_test.go
+    └── test/
+        ├── e2e/
+        │   ├── drug_test.go            # GET /drugs のフルスタック検証
+        │   └── server_test.go          # feature 横断 (404 など)
+        ├── testdb/                     # 一時 SQLite の生成・接続
+        └── testrequest/                # 本番と同じ配線で組んだ API へのリクエスト
 ```
 
 ## SQLite 接続
@@ -131,7 +136,7 @@ make lint   # golangci-lint (設定は .golangci.yml)
 push / PR 時は GitHub Actions (`.github/workflows/ci.yml`) で gofmt・vet・lint・
 テスト・Lambda 向けクロスコンパイルが実行される。
 
-`internal/features/drug` のテストは一時 SQLite ファイルを `t.TempDir()` に生成するため、`assets/master.db` がなくても実行できる。E2E テスト (`e2e_test.go`) はルータ含むフルスタックを検証する。
+テストは一時 SQLite ファイルを `t.TempDir()` に生成するため、`assets/master.db` がなくても実行できる。E2E (`internal/test/e2e`) は `server.New(db)` で本番と同じ配線を組み上げて検証する。
 
 ### Lambda デプロイ用パッケージ
 
