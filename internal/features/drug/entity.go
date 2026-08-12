@@ -2,8 +2,7 @@
 // モジュールを追加するときは、このパッケージと同じ構成のディレクトリを新設する。
 package drug
 
-// Drug は医薬品を表すドメインエンティティ。
-// JSON タグは handler.go の DTO 側で付与し、ドメインと転送表現を分離する。
+// 医薬品のドメインエンティティ (JSON タグは dto.go 側で付与する)
 type Drug struct {
 	YJCode string
 	Name   string
