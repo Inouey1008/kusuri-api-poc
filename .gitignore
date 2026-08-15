@@ -2,3 +2,8 @@
 /bootstrap
 /fn.zip
 /dist/
+
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform/modules/api/placeholder.zip
