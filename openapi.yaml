@@ -22,6 +22,23 @@ servers:
         default: ap-northeast-1
 
 paths:
+  /health:
+    get:
+      summary: ヘルスチェック
+      description: |
+        デプロイ後の疎通確認に使う。DB 接続は起動時に確認済みのため、ここでは見ない。
+      operationId: checkHealth
+      security: [] # 認証不要
+      responses:
+        "200":
+          description: 正常
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: ok
+
   /drugs:
     get:
       summary: 医薬品検索
@@ -93,6 +110,14 @@ paths:
 
 components:
   schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
     Drug:
       type: object
       required: [yjCode, name]

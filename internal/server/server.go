@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/features/drug"
+	"github.com/inouey1008/kusuri-api-poc/internal/features/health"
 	"github.com/inouey1008/kusuri-api-poc/internal/logging"
 )
 
@@ -19,11 +20,14 @@ type Server struct {
 }
 
 func New(db *sql.DB) *Server {
+	healthHandler := health.NewHandler()
+
 	drugRepository := drug.NewRepository(db)
 	drugService := drug.NewService(drugRepository)
 	drugHandler := drug.NewHandler(drugService)
 
 	registerers := []Registerer{
+		healthHandler,
 		drugHandler,
 	}
 	middlewares := []Middleware{
