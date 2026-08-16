@@ -28,40 +28,48 @@ make run    # DB がなければ生成してから起動
 curl 'http://localhost:8080/drugs?q=エゼチミブ'
 ```
 
+## デプロイ
+
+`release/dev` `release/prod` へのマージで、対象環境へ自動的に反映される。
+
+インフラの差分は `release/*` への PR に plan の結果がコメントされるので、マージ前にそこで確認する。
+
 ## インフラ
 
-Terraform で管理する。
+Terraform で管理する。整形は `make tf-fmt`、構文チェック (`terraform validate`) は PR 時に CI が実行する。
+
+### 差分の確認
+
+```sh
+terraform -chdir=terraform/env/dev init    # 初回のみ
+terraform -chdir=terraform/env/dev plan
+```
 
 ### 初回設定
 
-tfstate の保存先を先に作る必要があるため、初回のみ `initial_setup` を apply する。
+初回のみ `initial_setup` を apply して、tfstate の保存先と IAM ロールを作成する
 
 ```sh
 terraform -chdir=terraform/initial_setup/env/dev init
 terraform -chdir=terraform/initial_setup/env/dev apply
+
+terraform -chdir=terraform/initial_setup/env/prod init
+terraform -chdir=terraform/initial_setup/env/prod apply
 ```
 
-### インフラの変更
+続けて GitHub 側を設定する。
 
-メモリサイズやタイムアウトなどを変えるときに使う。
+- リポジトリ変数 `AWS_ACCOUNT_ID` に AWS アカウント ID を登録する
+- `release/dev` `release/prod` ブランチを作成する
 
-```sh
-make tf-init ENV=dev     # 初回のみ
-make tf-plan ENV=dev
-make tf-apply ENV=dev
-```
+### IAM ロール
 
-エンドポイントは `function_url` として出力される。コールドスタートを計測する際は `terraform/env/dev/locals.tf` の `memory_size` を変えて apply し直す。Init Duration は CloudWatch Logs で確認する。
+plan と apply で権限を分けている。apply ロールは対象ブランチへの push でのみ引き受けられる。
 
-## デプロイ
-
-コードだけを更新する。Terraform はコードの差分を見ないため (`ignore_changes`)、インフラに変更がなければ apply は不要。
-
-```sh
-make deploy ENV=dev
-```
-
-`make zip` で `fn.zip` を作り、`aws lambda update-function-code` で反映する。
+| ロール | 権限 | 引き受け条件 |
+|---|---|---|
+| `<prefix>-terraform-plan` | ReadOnly + tfstate 読み書き | PR |
+| `<prefix>-terraform-apply` | Lambda / IAM / Logs + tfstate 読み書き | `release/<env>` への push |
 
 ## その他コマンド
 
