@@ -8,8 +8,11 @@ resource "aws_lambda_function" "api" {
   architectures = ["arm64"]
 
   # 関数の作成には何らかのコードが必要なため、空の zip を置いておく
-  # 実際のコードは make deploy (aws lambda update-function-code) で反映する
+  # 実際のコードは deploy ワークフローが update-function-code で反映する
   filename = data.archive_file.placeholder.output_path
+
+  # 更新のたびにバージョンを発行し、切り戻せるようにする
+  publish = true
 
   memory_size = var.memory_size
   timeout     = var.timeout
@@ -35,9 +38,22 @@ data "archive_file" "placeholder" {
   }
 }
 
+# 公開するバージョンを指すポインタ。疎通確認が通った後に切り替える
+resource "aws_lambda_alias" "current" {
+  name             = "current"
+  function_name    = aws_lambda_function.api.function_name
+  function_version = aws_lambda_function.api.version
+
+  lifecycle {
+    # 切り替えは CLI が担うため、Terraform は差分を見ない
+    ignore_changes = [function_version]
+  }
+}
+
 # PoC のため認証なしで公開する。CORS は未設定 (ブラウザからは直接呼べない)
 resource "aws_lambda_function_url" "api" {
   function_name      = aws_lambda_function.api.function_name
+  qualifier          = aws_lambda_alias.current.name
   authorization_type = "NONE"
 }
 

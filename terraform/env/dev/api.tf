@@ -10,6 +10,10 @@ output "function_name" {
   value       = module.api.function_name
 }
 
+output "alias_name" {
+  value = module.api.alias_name
+}
+
 output "function_url" {
   value = module.api.function_url
 }
