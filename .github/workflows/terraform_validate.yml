@@ -1,0 +1,26 @@
+name: Terraform Validate
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform_*.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
+
+      - name: fmt
+        run: terraform -chdir=terraform fmt -recursive -check -diff
+
+      - name: validate
+        run: scripts/terraform_validate.sh

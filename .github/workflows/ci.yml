@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - release/**
   pull_request:
 
 permissions:
@@ -23,8 +25,6 @@ jobs:
           make format
           git diff --exit-code
 
-      # 配布バイナリは Go 1.25 ビルドで 1.26 のコードを解析できないため、
-      # go run でこの環境の Go (1.26.5) からビルドして実行する
       - name: golangci-lint
         run: make lint
 
