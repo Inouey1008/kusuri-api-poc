@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - release/**
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # mise.toml の go バージョンをそのまま使う
+      - uses: jdx/mise-action@v2
+
+      # 差分が出たら make format の実行漏れ
+      - name: format
+        run: |
+          make format
+          git diff --exit-code
+
+      - name: golangci-lint
+        run: make lint
+
+      - name: go test
+        run: make test
+
+      # Lambda 向けのクロスコンパイルが通ることを確認する
+      - name: build
+        run: make build

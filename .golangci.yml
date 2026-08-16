@@ -1,0 +1,35 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck # エラーの戻り値を無視していないか
+    - govet
+    - ineffassign # 使われない代入
+    - staticcheck # バグ検出 + 命名規約 (ST1xxx)
+    - unused
+    - bodyclose # HTTP レスポンスの Close 漏れ
+    - errorlint # errors.Is/As を使わない型アサーション
+    - nilerr # err != nil なのに nil を返す
+    - rowserrcheck # sql.Rows の Err() チェック漏れ
+    - sqlclosecheck # sql.Rows/Stmt の Close 漏れ
+
+  settings:
+    staticcheck:
+      checks:
+        - all
+        # パッケージコメントは README に記載しているため必須にしない
+        - -ST1000
+        # ドメインと DTO のフィールドが同一でも型変換にはしない
+        # (Drug にフィールドが増えたとき API へ意図せず漏れるのを防ぐ)
+        - -S1016
+        # コメントは日本語で書いており、識別子名から始まらないため無効化する
+        - -ST1020
+        - -ST1021
+        - -ST1022
+
+  exclusions:
+    rules:
+      # テストではエラーを握りつぶす箇所があるため緩める
+      - path: _test\.go
+        linters:
+          - errcheck

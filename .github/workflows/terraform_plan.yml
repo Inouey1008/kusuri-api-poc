@@ -1,0 +1,53 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    branches:
+      - release/dev
+      - release/prod
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  plan:
+    # fork からの PR は AWS に接続させない
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # release/dev → dev, release/prod → prod
+      - name: resolve env
+        id: env
+        run: echo "name=${GITHUB_BASE_REF#release/}" >> "$GITHUB_OUTPUT"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/kusuri-api-poc-${{ steps.env.outputs.name }}-terraform-plan
+          aws-region: ap-northeast-1
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
+
+      - name: init
+        run: terraform -chdir=terraform/env/${{ steps.env.outputs.name }} init
+
+      # plan が失敗してもコメントは残したいので、ここでは終了コードを記録するだけ
+      - name: plan
+        id: plan
+        run: |
+          terraform -chdir=terraform/env/${{ steps.env.outputs.name }} plan -no-color 2>&1 | tee plan.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: comment plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/comment_plan.sh ${{ steps.env.outputs.name }} plan.txt ${{ github.event.number }}
+
+      - name: fail on plan error
+        if: steps.plan.outputs.exitcode != '0'
+        run: exit 1
