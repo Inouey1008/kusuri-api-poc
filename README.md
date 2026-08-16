@@ -47,6 +47,12 @@ terraform -chdir=terraform/env/dev plan
 
 ### 初回設定
 
+`locals.tf` の `subject_prefix` に、OIDC トークンの `sub` のプレフィックスを設定する。GitHub は名前変更に耐えるよう数値 ID を含めるため、以下で取得する。
+
+```sh
+gh api /repos/<owner>/<repo>/actions/oidc/customization/sub --jq '.sub_claim_prefix'
+```
+
 初回のみ `initial_setup` を apply して、tfstate の保存先と IAM ロールを作成する
 
 ```sh

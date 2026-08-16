@@ -1,7 +1,7 @@
 locals {
   # ロールを引き受けられる GitHub Actions の実行文脈
-  plan_subjects  = ["repo:${var.repository_name}:pull_request"]
-  apply_subjects = [for branch in var.apply_branches : "repo:${var.repository_name}:ref:refs/heads/${branch}"]
+  plan_subjects  = ["${var.subject_prefix}:pull_request"]
+  apply_subjects = [for branch in var.apply_branches : "${var.subject_prefix}:ref:refs/heads/${branch}"]
 }
 
 resource "aws_iam_role" "terraform_plan" {

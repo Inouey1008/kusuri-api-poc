@@ -2,9 +2,11 @@ variable "shared_prefix" {
   type = string
 }
 
-variable "repository_name" {
+# GitHub は名前変更に耐えるよう sub に数値 ID を含める。値は以下で取得する
+#   gh api /repos/<owner>/<repo>/actions/oidc/customization/sub
+variable "subject_prefix" {
   type        = string
-  description = "owner/repo 形式"
+  description = "OIDC トークンの sub のプレフィックス (例: repo:owner@123/repo@456)"
 }
 
 variable "apply_branches" {
