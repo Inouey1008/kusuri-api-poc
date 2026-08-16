@@ -59,7 +59,7 @@ terraform -chdir=terraform/initial_setup/env/prod apply
 
 続けて GitHub 側を設定する。
 
-- リポジトリシークレット `AWS_ACCOUNT_ID` に AWS アカウント ID を登録する (公開リポジトリのため、Actions のログに残さないよう Variables ではなく Secrets にする)
+- リポジトリシークレット `AWS_ACCOUNT_ID` に AWS アカウント ID を登録する
 - `release/dev` `release/prod` ブランチを作成する
 
 ### IAM ロール
