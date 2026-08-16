@@ -25,8 +25,9 @@ gen-db:
 	sqlite3 assets/master.db < assets/gen.sql
 
 # modernc は純Goのため CGO 不要でクロスコンパイル可
+# -s -w はデバッグ情報を落とす。zip が約半分になりコールドスタートが縮む
 build:
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -o bootstrap .
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -trimpath -ldflags="-s -w" -o bootstrap .
 
 # Lambda は /var/task に展開するため、DB は assets/master.db の階層を保つ
 zip: build gen-db
