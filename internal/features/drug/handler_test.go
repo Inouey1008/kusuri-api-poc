@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -24,8 +25,16 @@ func (s *stubService) Search(ctx context.Context, q string) ([]drug.Drug, error)
 	return s.searchResult, s.searchErr
 }
 
-func newRouter(service *stubService) http.Handler {
-	return server.NewWith([]server.Registerer{drug.NewHandler(service)}, nil)
+func callSearch(t *testing.T, service *stubService, q string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	e := server.NewWith([]server.Registerer{drug.NewHandler(service)}, nil)
+
+	target := "/drugs?q=" + url.QueryEscape(q)
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, target, nil))
+
+	return recorder
 }
 
 func TestHandler_Search(t *testing.T) {
@@ -37,12 +46,10 @@ func TestHandler_Search(t *testing.T) {
 			},
 		}
 
-		request := httptest.NewRequest(http.MethodGet, "/drugs?q=エゼチミブ", nil)
-		recorder := httptest.NewRecorder()
-		newRouter(stub).ServeHTTP(recorder, request)
+		recorder := callSearch(t, stub, "エゼチミブ")
 
 		require.Equal(t, http.StatusOK, recorder.Code)
-		assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+		assert.Contains(t, recorder.Header().Get("Content-Type"), "application/json")
 
 		var body struct {
 			Total int `json:"total"`
@@ -59,9 +66,7 @@ func TestHandler_Search(t *testing.T) {
 	})
 
 	t.Run(`q が長すぎる場合は 400 と対象フィールドを返す`, func(t *testing.T) {
-		request := httptest.NewRequest(http.MethodGet, "/drugs?q="+strings.Repeat("a", 101), nil)
-		recorder := httptest.NewRecorder()
-		newRouter(&stubService{}).ServeHTTP(recorder, request)
+		recorder := callSearch(t, &stubService{}, strings.Repeat("a", 101))
 
 		require.Equal(t, http.StatusBadRequest, recorder.Code)
 

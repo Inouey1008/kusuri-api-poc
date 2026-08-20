@@ -3,7 +3,7 @@ package health
 import (
 	"net/http"
 
-	"github.com/inouey1008/kusuri-api-poc/internal/httpx"
+	"github.com/labstack/echo/v4"
 )
 
 type Handler struct{}
@@ -13,6 +13,6 @@ func NewHandler() *Handler {
 }
 
 // DB は起動時に sqlite.Connect が疎通確認済みのため、ここでは接続を見ない
-func (handler *Handler) Check(writer http.ResponseWriter, request *http.Request) {
-	httpx.WriteJSON(writer, http.StatusOK, healthResponse{Status: "ok"})
+func (handler *Handler) Check(c echo.Context) error {
+	return c.JSON(http.StatusOK, healthResponse{Status: "ok"})
 }

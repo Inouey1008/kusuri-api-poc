@@ -1,7 +1,7 @@
 package drug
 
-import "net/http"
+import "github.com/labstack/echo/v4"
 
-func (handler *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /drugs", handler.Search)
+func (handler *Handler) Register(e *echo.Echo) {
+	e.GET("/drugs", handler.Search)
 }

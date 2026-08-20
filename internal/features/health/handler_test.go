@@ -12,29 +12,28 @@ import (
 	"github.com/inouey1008/kusuri-api-poc/internal/server"
 )
 
-func get(t *testing.T) *httptest.ResponseRecorder {
+func callCheck(t *testing.T) *httptest.ResponseRecorder {
 	t.Helper()
 
-	handler := server.NewWith([]server.Registerer{health.NewHandler()}, nil)
+	e := server.NewWith([]server.Registerer{health.NewHandler()}, nil)
 
-	request := httptest.NewRequest(http.MethodGet, "/health", nil)
 	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
+	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/health", nil))
 
 	return recorder
 }
 
 func TestHandler_Check(t *testing.T) {
 	t.Run(`200 を返す`, func(t *testing.T) {
-		recorder := get(t)
+		recorder := callCheck(t)
 
 		require.Equal(t, http.StatusOK, recorder.Code)
 	})
 
 	t.Run(`status ok を JSON で返す`, func(t *testing.T) {
-		recorder := get(t)
+		recorder := callCheck(t)
 
-		assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+		assert.Contains(t, recorder.Header().Get("Content-Type"), "application/json")
 		assert.JSONEq(t, `{"status":"ok"}`, recorder.Body.String())
 	})
 }

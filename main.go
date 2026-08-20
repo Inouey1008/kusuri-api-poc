@@ -11,9 +11,10 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	httpadapter "github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
+	echoadapter "github.com/awslabs/aws-lambda-go-api-proxy/echo"
+	"github.com/labstack/echo/v4"
 
-	"github.com/inouey1008/kusuri-api-poc/internal/logging"
+	"github.com/inouey1008/kusuri-api-poc/internal/logx"
 	"github.com/inouey1008/kusuri-api-poc/internal/server"
 	"github.com/inouey1008/kusuri-api-poc/internal/sqlite"
 )
@@ -24,7 +25,7 @@ const (
 )
 
 func main() {
-	logging.Init()
+	logx.Init()
 
 	db, err := sqlite.Connect(context.Background(), dbPath)
 	if err != nil {
@@ -33,27 +34,26 @@ func main() {
 	}
 	defer func() { _ = db.Close() }()
 
-	handler := server.New(db)
+	e := server.New(db)
 
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") != "" {
 		// Function URLs は API Gateway v2 ペイロード形式のため NewV2 を使う。
-		lambda.Start(httpadapter.NewV2(handler).ProxyWithContext)
+		lambda.Start(echoadapter.NewV2(e).ProxyWithContext)
 		return
 	}
 
-	if err := listenAndServe(handler); err != nil {
+	if err := listenAndServe(e); err != nil {
 		slog.Error("server error", slog.Any("error", err))
 		os.Exit(1)
 	}
 }
 
 // SIGINT / SIGTERM を受けたら処理中のリクエストを待ってから終了する
-func listenAndServe(handler http.Handler) error {
+func listenAndServe(e *echo.Echo) error {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-	httpServer := &http.Server{Addr: ":" + port, Handler: handler}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -61,7 +61,7 @@ func listenAndServe(handler http.Handler) error {
 	errs := make(chan error, 1)
 	go func() {
 		slog.Info("listening", slog.String("port", port))
-		if err := httpServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		if err := e.Start(":" + port); !errors.Is(err, http.ErrServerClosed) {
 			errs <- err
 		}
 	}()
@@ -76,5 +76,5 @@ func listenAndServe(handler http.Handler) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
-	return httpServer.Shutdown(shutdownCtx)
+	return e.Shutdown(shutdownCtx)
 }
