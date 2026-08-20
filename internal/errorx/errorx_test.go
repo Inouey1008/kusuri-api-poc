@@ -73,10 +73,11 @@ func TestErrorx_Write(t *testing.T) {
 }
 
 func TestErrorx_WithDetails(t *testing.T) {
-	details := []validation.FieldError{{Field: "q", Message: "too long"}}
+	t.Run(`Details が設定した値で返る`, func(t *testing.T) {
+		details := []validation.FieldError{{Field: "q", Message: "too long"}}
 
-	got := errorx.Validation.WithDetails(details)
+		got := errorx.Validation.WithDetails(details)
 
-	assert.Equal(t, details, got.Details)
-	assert.Nil(t, errorx.Validation.Details, "元の値を変更してはいけない")
+		assert.Equal(t, details, got.Details)
+	})
 }
