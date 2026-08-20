@@ -22,26 +22,35 @@ func (s *stubRepository) FindByName(ctx context.Context, q string) ([]drug.Drug,
 	return s.searchResult, s.searchErr
 }
 
-func TestService_Search_Success(t *testing.T) {
-	expected := []drug.Drug{
-		{YJCode: "2189018F1043", Name: "エゼチミブ錠10mg「JG」"},
-		{YJCode: "2189018F1094", Name: "エゼチミブ錠10mg「YD」"},
-	}
-	stub := &stubRepository{searchResult: expected}
-	service := drug.NewService(stub)
+func TestService_Search(t *testing.T) {
+	t.Run(`リポジトリの結果をそのまま返す`, func(t *testing.T) {
+		expected := []drug.Drug{
+			{YJCode: "2189018F1043", Name: "エゼチミブ錠10mg「JG」"},
+			{YJCode: "2189018F1094", Name: "エゼチミブ錠10mg「YD」"},
+		}
+		service := drug.NewService(&stubRepository{searchResult: expected})
 
-	got, err := service.Search(context.Background(), "エゼチミブ")
+		got, err := service.Search(context.Background(), "エゼチミブ")
 
-	require.NoError(t, err)
-	assert.Equal(t, "エゼチミブ", stub.searchQuery)
-	assert.Equal(t, expected, got)
-}
+		require.NoError(t, err)
+		assert.Equal(t, expected, got)
+	})
 
-func TestService_Search_Error(t *testing.T) {
-	stub := &stubRepository{searchErr: errors.New("db error")}
-	service := drug.NewService(stub)
+	t.Run(`検索語をリポジトリへ渡す`, func(t *testing.T) {
+		stub := &stubRepository{}
+		service := drug.NewService(stub)
 
-	_, err := service.Search(context.Background(), "エゼチミブ")
+		_, err := service.Search(context.Background(), "エゼチミブ")
 
-	assert.Error(t, err)
+		require.NoError(t, err)
+		assert.Equal(t, "エゼチミブ", stub.searchQuery)
+	})
+
+	t.Run(`リポジトリが失敗したらエラーを返す`, func(t *testing.T) {
+		service := drug.NewService(&stubRepository{searchErr: errors.New("db error")})
+
+		_, err := service.Search(context.Background(), "エゼチミブ")
+
+		assert.Error(t, err)
+	})
 }

@@ -2,24 +2,19 @@ package server
 
 import (
 	"database/sql"
-	"net/http"
+
+	"github.com/labstack/echo/v4"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/features/drug"
 	"github.com/inouey1008/kusuri-api-poc/internal/features/health"
-	"github.com/inouey1008/kusuri-api-poc/internal/logging"
+	"github.com/inouey1008/kusuri-api-poc/internal/middleware"
 )
 
-type Middleware func(http.Handler) http.Handler
-
 type Registerer interface {
-	Register(mux *http.ServeMux)
+	Register(e *echo.Echo)
 }
 
-type Server struct {
-	handler http.Handler
-}
-
-func New(db *sql.DB) *Server {
+func New(db *sql.DB) *echo.Echo {
 	healthHandler := health.NewHandler()
 
 	drugRepository := drug.NewRepository(db)
@@ -30,33 +25,33 @@ func New(db *sql.DB) *Server {
 		healthHandler,
 		drugHandler,
 	}
-	middlewares := []Middleware{
-		logging.Middleware,
+
+	middlewares := []echo.MiddlewareFunc{
+		middleware.Logging,
+		middleware.Recovery, // !! Recovery を内側に置くことで、panic した要求も 500 として Logging に記録される
 	}
 
 	return newServer(registerers, middlewares)
 }
 
 // テストからスタブを差し込むための入口
-func NewWith(registerers []Registerer, middlewares []Middleware) *Server {
+func NewWith(registerers []Registerer, middlewares []echo.MiddlewareFunc) *echo.Echo {
 	return newServer(registerers, middlewares)
 }
 
-func newServer(registerers []Registerer, middlewares []Middleware) *Server {
-	mux := http.NewServeMux()
+func newServer(registerers []Registerer, middlewares []echo.MiddlewareFunc) *echo.Echo {
+	e := echo.New()
+
+	// Lambda では標準出力がそのままログになるため、Echo の装飾を止める
+	e.HideBanner = true
+	e.HidePort = true
+
+	e.HTTPErrorHandler = errorHandler
+	e.Use(middlewares...)
+
 	for _, registerer := range registerers {
-		registerer.Register(mux)
+		registerer.Register(e)
 	}
 
-	// middlewares の順に実行されるよう、末尾から包んでいく
-	handler := http.Handler(mux)
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		handler = middlewares[i](handler)
-	}
-
-	return &Server{handler: handler}
-}
-
-func (server *Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	server.handler.ServeHTTP(writer, request)
+	return e
 }

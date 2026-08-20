@@ -4,8 +4,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/labstack/echo/v4"
+
 	"github.com/inouey1008/kusuri-api-poc/internal/errorx"
-	"github.com/inouey1008/kusuri-api-poc/internal/httpx"
 	"github.com/inouey1008/kusuri-api-poc/internal/validation"
 )
 
@@ -21,18 +22,16 @@ func NewHandler(service service) *Handler {
 	return &Handler{service: service}
 }
 
-func (handler *Handler) Search(writer http.ResponseWriter, request *http.Request) {
-	q := request.URL.Query().Get("q")
+func (handler *Handler) Search(c echo.Context) error {
+	q := c.QueryParam("q")
 
 	if errs := validation.Validate(searchRequest{Q: q}); errs != nil {
-		errorx.Validation.WithDetails(errs).Write(writer)
-		return
+		return errorx.Validation.WithDetails(errs)
 	}
 
-	items, err := handler.service.Search(request.Context(), q)
+	items, err := handler.service.Search(c.Request().Context(), q)
 	if err != nil {
-		errorx.Internal.Write(writer)
-		return
+		return err
 	}
 
 	responses := make([]drugResponse, len(items))
@@ -40,7 +39,7 @@ func (handler *Handler) Search(writer http.ResponseWriter, request *http.Request
 		responses[i] = item.toResponse()
 	}
 
-	httpx.WriteJSON(writer, http.StatusOK, searchResponse{
+	return c.JSON(http.StatusOK, searchResponse{
 		Total: len(responses),
 		Items: responses,
 	})
