@@ -6,18 +6,29 @@ info:
   description: |
     医薬品マスタの検索 API (PoC)。
 
-    AWS Lambda Function URLs 上で動作する。データは同梱の SQLite (読み取り専用) を参照する。
+    AWS Lambda 上で動作し、API Gateway (HTTP API) を経由して公開する。
+    データは同梱の SQLite (読み取り専用) を参照する。
 
-    認証は未実装 (Function URLs の AuthType: NONE を想定)。
+    認証は未実装。流量は API Gateway 側で制限しており、
+    超過分は Lambda に到達せず 429 が返る。
+
+    未登録のパスは `NOT_FOUND` の Error 形式で 404 を返す。
+
+    ```json
+    { "code": "NOT_FOUND", "error": "Not Found" }
+    ```
+
+    この仕様書自体は `/openapi.yaml` で配信し、`/docs` でブラウザ表示できる。
+    どちらも API の操作ではないため、ここには記載しない。
 
 servers:
   - url: http://localhost:8080
     description: ローカル (make run)
-  - url: https://{functionUrlId}.lambda-url.{region}.on.aws
-    description: Lambda Function URLs
+  - url: https://{apiId}.execute-api.{region}.amazonaws.com
+    description: API Gateway (HTTP API)
     variables:
-      functionUrlId:
-        default: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      apiId:
+        default: xxxxxxxxxx
       region:
         default: ap-northeast-1
 
@@ -27,6 +38,8 @@ paths:
       summary: ヘルスチェック
       description: |
         デプロイ後の疎通確認に使う。DB 接続は起動時に確認済みのため、ここでは見ない。
+
+        実行環境を温存するため、5 分ごとに定期的に呼ばれる。
       operationId: checkHealth
       security: [] # 認証不要
       responses:
@@ -38,6 +51,8 @@ paths:
                 $ref: "#/components/schemas/HealthResponse"
               example:
                 status: ok
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /drugs:
     get:
@@ -98,17 +113,45 @@ paths:
                 details:
                   - field: q
                     message: must be at most 100 characters
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
         "500":
-          description: サーバー内部エラー
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              example:
-                code: INTERNAL_ERROR
-                error: サーバー内部でエラーが発生しました
+          $ref: "#/components/responses/InternalError"
 
 components:
+  responses:
+    MethodNotAllowed:
+      description: 登録されていないメソッド
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: METHOD_NOT_ALLOWED
+            error: Method Not Allowed
+
+    TooManyRequests:
+      description: |
+        流量の上限を超えた。API Gateway が返すため、本文は Error 形式ではない。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/GatewayError"
+          example:
+            message: Too Many Requests
+
+    InternalError:
+      description: サーバー内部エラー
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: INTERNAL_ERROR
+            error: サーバー内部でエラーが発生しました
+
   schemas:
     HealthResponse:
       type: object
@@ -149,7 +192,7 @@ components:
       type: object
       required: [code, error]
       description: |
-        全エンドポイント共通のエラー形式。
+        アプリが返すエラー形式。
 
         `code` は言語非依存の識別子で、クライアントの分岐にはこちらを使う。
         `error` は表示用の文言であり、変更される可能性がある。
@@ -160,15 +203,30 @@ components:
           enum:
             - VALIDATION_FAILED
             - INTERNAL_ERROR
+            - NOT_FOUND
+            - METHOD_NOT_ALLOWED
         error:
           type: string
-          description: 人間向けのエラーメッセージ (日本語)
+          description: 人間向けのエラーメッセージ
           example: 入力内容に誤りがあります
         details:
           type: array
           description: バリデーション違反の詳細。VALIDATION_FAILED のときのみ含まれる。
           items:
             $ref: "#/components/schemas/FieldError"
+
+    GatewayError:
+      type: object
+      required: [message]
+      description: |
+        API Gateway が生成するエラー形式。アプリに到達しないため Error とは異なる。
+
+        HTTP API では本文をカスタマイズできないため、クライアントは
+        ステータスコードで分岐し、本文の形式に依存しないこと。
+      properties:
+        message:
+          type: string
+          example: Too Many Requests
 
     FieldError:
       type: object

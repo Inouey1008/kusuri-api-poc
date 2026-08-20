@@ -13,7 +13,7 @@ import (
 func Get(t *testing.T, path string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	handler := server.New(testdb.Connect(t))
+	handler := server.New(testdb.Connect(t), []byte("openapi: 3.0.0"))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
 

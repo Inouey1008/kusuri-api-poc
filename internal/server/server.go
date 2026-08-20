@@ -5,6 +5,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/inouey1008/kusuri-api-poc/internal/features/docs"
 	"github.com/inouey1008/kusuri-api-poc/internal/features/drug"
 	"github.com/inouey1008/kusuri-api-poc/internal/features/health"
 	"github.com/inouey1008/kusuri-api-poc/internal/middleware"
@@ -14,8 +15,10 @@ type Registerer interface {
 	Register(e *echo.Echo)
 }
 
-func New(db *sql.DB) *echo.Echo {
+func New(db *sql.DB, openapi []byte) *echo.Echo {
 	healthHandler := health.NewHandler()
+
+	docsHandler := docs.NewHandler(openapi)
 
 	drugRepository := drug.NewRepository(db)
 	drugService := drug.NewService(drugRepository)
@@ -23,6 +26,7 @@ func New(db *sql.DB) *echo.Echo {
 
 	registerers := []Registerer{
 		healthHandler,
+		docsHandler,
 		drugHandler,
 	}
 

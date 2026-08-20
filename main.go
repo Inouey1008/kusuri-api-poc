@@ -34,7 +34,7 @@ func main() {
 	}
 	defer func() { _ = db.Close() }()
 
-	e := server.New(db)
+	e := server.New(db, openapi)
 
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") != "" {
 		// Function URLs は API Gateway v2 ペイロード形式のため NewV2 を使う。
