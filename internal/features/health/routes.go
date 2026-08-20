@@ -1,7 +1,7 @@
 package health
 
-import "net/http"
+import "github.com/labstack/echo/v4"
 
-func (handler *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /health", handler.Check)
+func (handler *Handler) Register(e *echo.Echo) {
+	e.GET("/health", handler.Check)
 }

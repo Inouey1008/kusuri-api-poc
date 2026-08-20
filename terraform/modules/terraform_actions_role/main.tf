@@ -65,7 +65,13 @@ data "aws_iam_policy_document" "terraform_apply" {
     resources = ["*"]
   }
 
-  # Lambda 実行ロールの作成とポリシーアタッチ
+  # Lambda の暖機スケジュール
+  statement {
+    actions   = ["scheduler:*"]
+    resources = ["*"]
+  }
+
+  # Lambda 実行ロールと Scheduler 実行ロールの管理
   statement {
     actions = [
       "iam:CreateRole",
@@ -76,6 +82,9 @@ data "aws_iam_policy_document" "terraform_apply" {
       "iam:ListInstanceProfilesForRole",
       "iam:AttachRolePolicy",
       "iam:DetachRolePolicy",
+      "iam:PutRolePolicy",
+      "iam:GetRolePolicy",
+      "iam:DeleteRolePolicy",
       "iam:TagRole",
       "iam:UntagRole",
       "iam:PassRole",

@@ -11,8 +11,10 @@ import (
 )
 
 func TestHealth(t *testing.T) {
-	recorder := testrequest.Get(t, "/health")
+	t.Run(`200 と status ok を返す`, func(t *testing.T) {
+		recorder := testrequest.Get(t, "/health")
 
-	require.Equal(t, http.StatusOK, recorder.Code)
-	assert.JSONEq(t, `{"status":"ok"}`, recorder.Body.String())
+		require.Equal(t, http.StatusOK, recorder.Code)
+		assert.JSONEq(t, `{"status":"ok"}`, recorder.Body.String())
+	})
 }

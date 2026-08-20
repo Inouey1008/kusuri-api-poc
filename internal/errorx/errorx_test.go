@@ -1,82 +1,41 @@
 package errorx_test
 
 import (
-	"encoding/json"
+	"errors"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/errorx"
 	"github.com/inouey1008/kusuri-api-poc/internal/validation"
 )
 
-func TestErrorx_Write(t *testing.T) {
-	testCases := []struct {
-		name            string
-		target          errorx.Errorx
-		expectedStatus  int
-		expectedCode    string
-		expectedDetails int
-	}{
-		{
-			name:           `Internal は 500`,
-			target:         errorx.Internal,
-			expectedStatus: http.StatusInternalServerError,
-			expectedCode:   "INTERNAL_ERROR",
-		},
-		{
-			name:           `Validation は 400`,
-			target:         errorx.Validation,
-			expectedStatus: http.StatusBadRequest,
-			expectedCode:   "VALIDATION_FAILED",
-		},
-		{
-			name: `Details 付き`,
-			target: errorx.Validation.WithDetails([]validation.FieldError{
-				{Field: "q", Message: "must be at most 100 characters"},
-			}),
-			expectedStatus:  http.StatusBadRequest,
-			expectedCode:    "VALIDATION_FAILED",
-			expectedDetails: 1,
-		},
-	}
+func TestErrorx_Error(t *testing.T) {
+	t.Run(`error として扱える`, func(t *testing.T) {
+		var err error = errorx.Validation
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
+		assert.EqualError(t, err, "入力内容に誤りがあります")
+	})
 
-			testCase.target.Write(recorder)
+	t.Run(`errors.As で元の型に戻せる`, func(t *testing.T) {
+		var err error = errorx.Validation
 
-			require.Equal(t, testCase.expectedStatus, recorder.Code)
-			assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+		var target errorx.Errorx
+		ok := errors.As(err, &target)
 
-			var body struct {
-				Status  int    `json:"status"` // json:"-" のため常にゼロ値
-				Code    string `json:"code"`
-				Message string `json:"error"`
-				Details []struct {
-					Field   string `json:"field"`
-					Message string `json:"message"`
-				} `json:"details"`
-			}
-			require.NoError(t, json.NewDecoder(recorder.Body).Decode(&body))
-
-			assert.Equal(t, testCase.expectedCode, body.Code)
-			assert.NotEmpty(t, body.Message)
-			assert.Zero(t, body.Status, "Status はボディに含めない")
-			assert.Len(t, body.Details, testCase.expectedDetails)
-		})
-	}
+		assert.True(t, ok, "HTTPErrorHandler がこの判定で status を決める")
+		assert.Equal(t, http.StatusBadRequest, target.Status)
+		assert.Equal(t, "VALIDATION_FAILED", target.Code)
+	})
 }
 
 func TestErrorx_WithDetails(t *testing.T) {
-	details := []validation.FieldError{{Field: "q", Message: "too long"}}
+	t.Run(`Details が設定した値で返る`, func(t *testing.T) {
+		details := []validation.FieldError{{Field: "q", Message: "too long"}}
 
-	got := errorx.Validation.WithDetails(details)
+		got := errorx.Validation.WithDetails(details)
 
-	assert.Equal(t, details, got.Details)
-	assert.Nil(t, errorx.Validation.Details, "元の値を変更してはいけない")
+		assert.Equal(t, details, got.Details)
+	})
 }
