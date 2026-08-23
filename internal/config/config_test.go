@@ -29,11 +29,11 @@ func TestLoad(t *testing.T) {
 		setRequired(t)
 		t.Setenv("PORT", "9000")
 
-		c, err := config.Load()
+		cfg, err := config.Load()
 
 		require.NoError(t, err)
-		assert.Equal(t, "9000", c.Port)
-		assert.Equal(t, "docs", c.DocsUser)
+		assert.Equal(t, "9000", cfg.Port)
+		assert.Equal(t, "docs", cfg.DocsUser)
 	})
 
 	t.Run(`必須の環境変数が未設定の場合、エラーになる`, func(t *testing.T) {
@@ -41,13 +41,17 @@ func TestLoad(t *testing.T) {
 			t.Run(key, func(t *testing.T) {
 				setRequired(t)
 				t.Setenv(key, "")
+
 				_, err := config.Load()
+
 				require.Error(t, err)
 			})
 		}
 	})
+}
 
-	t.Run(`IsLocal は ENVIRONMENT で決まる`, func(t *testing.T) {
+func TestConfig_IsLocal(t *testing.T) {
+	t.Run(`ENVIRONMENT が local のときだけ true`, func(t *testing.T) {
 		testCases := map[string]bool{
 			"local": true,
 			"dev":   false,
@@ -56,35 +60,24 @@ func TestLoad(t *testing.T) {
 
 		for environment, expected := range testCases {
 			t.Run(environment, func(t *testing.T) {
-				setRequired(t)
-				t.Setenv("ENVIRONMENT", environment)
+				cfg := config.Config{Environment: environment}
 
-				c, err := config.Load()
-
-				require.NoError(t, err)
-				assert.Equal(t, expected, c.IsLocal())
+				assert.Equal(t, expected, cfg.IsLocal())
 			})
 		}
 	})
+}
 
-	t.Run(`OnLambda は AWS_LAMBDA_RUNTIME_API の有無で決まる`, func(t *testing.T) {
-		t.Run(`設定されていれば true`, func(t *testing.T) {
-			setRequired(t)
-			t.Setenv("AWS_LAMBDA_RUNTIME_API", "127.0.0.1:9001")
+func TestConfig_OnLambda(t *testing.T) {
+	t.Run(`AWS_LAMBDA_RUNTIME_API が設定されていれば true`, func(t *testing.T) {
+		cfg := config.Config{LambdaRuntimeAPI: "127.0.0.1:9001"}
 
-			c, err := config.Load()
+		assert.True(t, cfg.OnLambda())
+	})
 
-			require.NoError(t, err)
-			assert.True(t, c.OnLambda())
-		})
+	t.Run(`未設定なら false`, func(t *testing.T) {
+		cfg := config.Config{}
 
-		t.Run(`未設定なら false`, func(t *testing.T) {
-			setRequired(t)
-
-			c, err := config.Load()
-
-			require.NoError(t, err)
-			assert.False(t, c.OnLambda())
-		})
+		assert.False(t, cfg.OnLambda())
 	})
 }
