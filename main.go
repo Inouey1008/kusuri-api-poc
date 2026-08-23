@@ -44,7 +44,7 @@ func main() {
 	}
 	defer func() { _ = db.Close() }()
 
-	e := server.New(db)
+	e := server.New(cfg, db)
 
 	if cfg.OnLambda() {
 		// Function URLs は API Gateway v2 ペイロード形式のため NewV2 を使う。
