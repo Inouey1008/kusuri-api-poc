@@ -15,10 +15,10 @@ type Registerer interface {
 	Register(e *echo.Echo)
 }
 
-func New(db *sql.DB, openapi []byte) *echo.Echo {
+func New(db *sql.DB) *echo.Echo {
 	healthHandler := health.NewHandler()
 
-	docsHandler := docs.NewHandler(openapi)
+	docsHandler := docs.NewHandler()
 
 	drugRepository := drug.NewRepository(db)
 	drugService := drug.NewService(drugRepository)

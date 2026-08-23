@@ -15,8 +15,7 @@ import (
 func sendGet(t *testing.T, path string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	spec := []byte("openapi: 3.0.0\ninfo:\n  title: test\n")
-	e := server.NewWith([]server.Registerer{docs.NewHandler(spec)}, nil)
+	e := server.NewWith([]server.Registerer{docs.NewHandler()}, nil)
 
 	recorder := httptest.NewRecorder()
 	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
@@ -30,7 +29,7 @@ func TestHandler_Spec(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, recorder.Code)
 		assert.Contains(t, recorder.Header().Get("Content-Type"), "application/yaml")
-		assert.Contains(t, recorder.Body.String(), "openapi: 3.0.0")
+		assert.Contains(t, recorder.Body.String(), "openapi:")
 	})
 }
 
