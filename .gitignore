@@ -2,6 +2,7 @@
 /bootstrap
 /fn.zip
 /dist/
+.env
 
 .terraform/
 *.tfstate

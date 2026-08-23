@@ -1,11 +1,13 @@
-.PHONY: setup run test format lint gen-db build zip clean tf-fmt
+.PHONY: setup run test format lint gen-db build zip clean tf-fmt guard-env tf-init tf-validate tf-plan tf-setup
+
+guard-env:
+	@test -n "$(ENV)" || { echo "ENV を指定してください (例: make tf-plan ENV=dev)"; exit 1; }
 
 setup: clean
 	mise install
 	go mod download
 	$(MAKE) gen-db
 
-# DB が無ければ生成する
 run:
 	@test -f assets/master.db || $(MAKE) gen-db
 	go run .
@@ -16,7 +18,6 @@ test:
 format:
 	gofmt -w .
 
-# CI と同じバージョンを使う
 lint:
 	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.2 run ./...
 
@@ -24,12 +25,10 @@ gen-db:
 	rm -f assets/master.db
 	sqlite3 assets/master.db < assets/gen.sql
 
-# modernc は純Goのため CGO 不要でクロスコンパイル可
-# -s -w はデバッグ情報を落とす。zip が約半分になりコールドスタートが縮む
 build:
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -trimpath -ldflags="-s -w" -o bootstrap .
 
-# Lambda は /var/task に展開するため、DB は assets/master.db の階層を保つ
+# Lambda は /var/task に展開するため、DB は assets/master.db の階層を保つ必要あり
 zip: build gen-db
 	rm -f fn.zip
 	zip fn.zip bootstrap assets/master.db
@@ -40,3 +39,16 @@ clean:
 
 tf-fmt:
 	terraform -chdir=terraform fmt -recursive
+
+tf-init: guard-env
+	terraform -chdir=terraform/env/$(ENV) init
+
+tf-validate: tf-init
+	terraform -chdir=terraform/env/$(ENV) validate
+
+tf-plan: tf-init
+	terraform -chdir=terraform/env/$(ENV) plan
+
+tf-setup: guard-env
+	terraform -chdir=terraform/initial_setup/env/$(ENV) init
+	terraform -chdir=terraform/initial_setup/env/$(ENV) apply
