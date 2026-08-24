@@ -6,6 +6,7 @@ output "alias_name" {
   value = aws_lambda_alias.current.name
 }
 
-output "function_url" {
-  value = aws_lambda_function_url.api.function_url
+output "api_endpoint" {
+  description = "API の公開 URL"
+  value       = aws_apigatewayv2_stage.default.invoke_url
 }
