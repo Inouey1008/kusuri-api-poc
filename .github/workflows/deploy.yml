@@ -40,6 +40,12 @@ jobs:
 
       # インフラの変更を適用する。差分がなければ数秒で終わる
       - name: terraform apply
+        env:
+          # 秘密情報はコードに持たず Secrets から渡す
+          TF_VAR_slack_team_id: ${{ secrets.SLACK_TEAM_ID }}
+          TF_VAR_slack_channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
+          TF_VAR_docs_user: ${{ secrets.DOCS_USER }}
+          TF_VAR_docs_password: ${{ secrets.DOCS_PASSWORD }}
         run: |
           terraform -chdir=terraform/env/${{ steps.env.outputs.name }} init
           terraform -chdir=terraform/env/${{ steps.env.outputs.name }} apply -auto-approve
