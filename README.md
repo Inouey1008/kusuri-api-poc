@@ -31,7 +31,7 @@ make run # http://localhost:8080 で起動
 
 ## 環境変数
 
-- 一覧は [config.go](config.go) を参照
+- 一覧は [config.go](internal/config/config.go) を参照
 
 ### local 環境
 - `.env` に書かれた値を mise が読み込み設定
@@ -68,9 +68,15 @@ make tf-setup ENV=prod
 
 3. GitHub に、シークレットを登録する
 
+リポジトリシークレット (dev・prod で共通)
+
 - `AWS_ACCOUNT_ID`: OIDC で引き受けるロールの ARN 組み立てに使用
+- `SLACK_TEAM_ID`: 通知先の Slack ワークスペース
+
+環境シークレット (Environments に `dev`・`prod` を作成し、環境ごとに別の値を登録)
+
 - `DOCS_USER` / `DOCS_PASSWORD`: API 仕様書の Basic 認証
-- `SLACK_TEAM_ID` / `SLACK_CHANNEL_ID`: アラートの通知先 (未設定なら連携を作らない)
+- `SLACK_CHANNEL_ID`: アラートの通知先チャンネル (未設定なら連携を作らない)
 
 ※ Slack へ通知する場合、ワークスペースの認可は AWS コンソール ( Amazon Q Developer in chat applications ) での手動作業する必要がある。そこで得た ID を上記のシークレットに登録すること。
 

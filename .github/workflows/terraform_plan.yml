@@ -16,6 +16,10 @@ jobs:
     # fork からの PR は AWS に接続させない
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+
+    # apply と同じ Secrets を使わないと差分が出る
+    environment: ${{ github.base_ref == 'release/prod' && 'prod' || 'dev' }}
+
     steps:
       - uses: actions/checkout@v4
 
