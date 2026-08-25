@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/inouey1008/kusuri-api-poc/internal/config"
 	"github.com/inouey1008/kusuri-api-poc/internal/server"
 	"github.com/inouey1008/kusuri-api-poc/internal/test/testdb"
 )
@@ -13,7 +14,14 @@ import (
 func Get(t *testing.T, path string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	handler := server.New(testdb.Connect(t))
+	cfg := config.Config{
+		Environment:  "local",
+		Port:         "8080",
+		DocsUser:     "docs",
+		DocsPassword: "secret",
+	}
+
+	handler := server.New(cfg, testdb.Connect(t))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
 

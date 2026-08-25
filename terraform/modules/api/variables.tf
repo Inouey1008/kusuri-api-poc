@@ -2,7 +2,6 @@ variable "shared_prefix" {
   type = string
 }
 
-# コールドスタート時間は割り当てられる CPU に左右され、CPU はメモリに比例する
 variable "memory_size" {
   type    = number
   default = 512
@@ -23,8 +22,65 @@ variable "warmup_enabled" {
   default = true
 }
 
-# 遊休環境の保持時間は非公表のため、経験則の 5 分を既定にする
 variable "warmup_interval_minutes" {
   type    = number
   default = 5
+}
+
+variable "throttling_rate_limit" {
+  type    = number
+  default = 100
+}
+
+variable "throttling_burst_limit" {
+  type    = number
+  default = 200
+}
+
+variable "cors_allow_origins" {
+  type    = list(string)
+  default = []
+}
+
+variable "reserved_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "alert_emails" {
+  type    = list(string)
+  default = []
+}
+
+variable "error_alarm_threshold" {
+  type    = number
+  default = 5
+}
+
+variable "request_spike_threshold" {
+  type    = number
+  default = 10000
+}
+
+variable "slack_team_id" {
+  type    = string
+  default = ""
+}
+
+variable "slack_channel_id" {
+  type    = string
+  default = ""
+}
+
+variable "docs_user" {
+  type = string
+}
+
+variable "docs_password" {
+  type      = string
+  sensitive = true
+}
+
+variable "environment" {
+  type = string
 }

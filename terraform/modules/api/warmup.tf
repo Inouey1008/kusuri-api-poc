@@ -1,4 +1,3 @@
-# コールドスタートを避けるため実行環境を温存する。効くのは同時実行 1 枠分のみ
 resource "aws_scheduler_schedule" "warmup" {
   count = var.warmup_enabled ? 1 : 0
 
@@ -11,7 +10,7 @@ resource "aws_scheduler_schedule" "warmup" {
   }
 
   target {
-    # Function URL と同じ経路を温めるため $LATEST ではなくエイリアスを叩く
+    # リクエストは current エイリアスに対して飛ぶので、関数名で叩かない ($LATEST が呼ばれてしまう)
     arn      = aws_lambda_alias.current.arn
     role_arn = aws_iam_role.scheduler[0].arn
 
@@ -26,21 +25,25 @@ resource "aws_scheduler_schedule" "warmup" {
       }
     })
 
-    # 次の実行で叩き直されるため再試行は不要
     retry_policy {
+      # 次の実行で叩き直されるため、リトライ不要
       maximum_retry_attempts = 0
     }
   }
+
+  description = "Lambda のコールドスタートを避けるため、定期実行してウォームアップしておく"
 }
 
 resource "aws_iam_role" "scheduler" {
   count = var.warmup_enabled ? 1 : 0
 
-  name = "${var.shared_prefix}-api-warmup-scheduler"
+  name        = "${var.shared_prefix}-api-warmup-scheduler"
+  description = "EventBridge Scheduler が warm-up のために引き受ける"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
+      Sid       = "AllowSchedulerAssumeRole"
       Effect    = "Allow"
       Action    = "sts:AssumeRole"
       Principal = { Service = "scheduler.amazonaws.com" }
@@ -48,7 +51,6 @@ resource "aws_iam_role" "scheduler" {
   })
 }
 
-# Scheduler はリソースベースポリシーではなく実行ロールで呼び出す
 resource "aws_iam_role_policy" "scheduler_invoke" {
   count = var.warmup_enabled ? 1 : 0
 
@@ -58,6 +60,7 @@ resource "aws_iam_role_policy" "scheduler_invoke" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
+      Sid      = "AllowInvokeCurrentAlias"
       Effect   = "Allow"
       Action   = "lambda:InvokeFunction"
       Resource = aws_lambda_alias.current.arn

@@ -7,18 +7,31 @@ resource "aws_lambda_function" "api" {
   handler       = "bootstrap"
   architectures = ["arm64"]
 
-  # 関数の作成には何らかのコードが必要なため、空の zip を置いておく
-  # 実際のコードは deploy ワークフローが update-function-code で反映する
+  # 作成にはコードが必要。実体は deploy が入れる
   filename = data.archive_file.placeholder.output_path
 
-  # 更新のたびにバージョンを発行し、切り戻せるようにする
   publish = true
 
   memory_size = var.memory_size
   timeout     = var.timeout
 
+  # 流量は API Gateway が絞る。ここは保険
+  reserved_concurrent_executions = var.reserved_concurrency
+
+  environment {
+    variables = {
+      ENVIRONMENT = var.environment
+
+      DOCS_USER     = var.docs_user
+      DOCS_PASSWORD = var.docs_password
+
+      # アプリが必須にしているが、Lambda では使われない
+      PORT = "8080"
+    }
+  }
+
   lifecycle {
-    # コードの更新は CLI が担うため、Terraform は差分を見ない
+    # 更新は CLI が担う
     ignore_changes = [filename, source_code_hash]
   }
 
@@ -38,27 +51,42 @@ data "archive_file" "placeholder" {
   }
 }
 
-# 公開するバージョンを指すポインタ。疎通確認が通った後に切り替える
+# 疎通確認が通った後に切り替える
 resource "aws_lambda_alias" "current" {
   name             = "current"
   function_name    = aws_lambda_function.api.function_name
   function_version = aws_lambda_function.api.version
 
   lifecycle {
-    # 切り替えは CLI が担うため、Terraform は差分を見ない
+    # 切り替えは CLI が担う
     ignore_changes = [function_version]
   }
 }
 
-# PoC のため認証なしで公開する。CORS は未設定 (ブラウザからは直接呼べない)
-resource "aws_lambda_function_url" "api" {
-  function_name      = aws_lambda_function.api.function_name
-  qualifier          = aws_lambda_alias.current.name
-  authorization_type = "NONE"
-}
-
-# 明示的に作らないと Lambda が保持期間なしで自動生成する
+# 作らないと保持期間なしで自動生成される
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = "/aws/lambda/${var.shared_prefix}-api"
   retention_in_days = var.log_retention_in_days
+}
+
+data "aws_iam_policy_document" "lambda_assume_role" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "lambda" {
+  name               = "${var.shared_prefix}-api-lambda-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+}
+
+# 外部リソースを参照しないため Logs 書き込みのみ
+resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
+  role       = aws_iam_role.lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }

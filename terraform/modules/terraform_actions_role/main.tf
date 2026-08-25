@@ -71,6 +71,20 @@ data "aws_iam_policy_document" "terraform_apply" {
     resources = ["*"]
   }
 
+  statement {
+    actions   = ["apigateway:*"]
+    resources = ["*"]
+  }
+
+  statement {
+    actions = [
+      "cloudwatch:*",
+      "sns:*",
+      "chatbot:*",
+    ]
+    resources = ["*"]
+  }
+
   # Lambda 実行ロールと Scheduler 実行ロールの管理
   statement {
     actions = [
