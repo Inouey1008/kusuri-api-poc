@@ -68,17 +68,30 @@ make tf-setup ENV=prod
 
 3. GitHub に、シークレットを登録する
 
-リポジトリシークレット (dev・prod で共通)
-
 - `AWS_ACCOUNT_ID`: OIDC で引き受けるロールの ARN 組み立てに使用
-- `SLACK_TEAM_ID`: 通知先の Slack ワークスペース
 
-環境シークレット (Environments に `dev`・`prod` を作成し、環境ごとに別の値を登録)
+4. Slack の識別子を SSM パラメータストアに登録する
 
-- `DOCS_USER` / `DOCS_PASSWORD`: API 仕様書の Basic 認証
-- `SLACK_CHANNEL_ID`: アラートの通知先チャンネル (未設定なら連携を作らない)
+秘密情報は `/kusuri-api-poc/<env>/` 配下に `SecureString` で置き、Terraform が apply 時に読み取って Lambda の環境変数として設定する。CI へは値を渡さない。
 
-※ Slack へ通知する場合、ワークスペースの認可は AWS コンソール ( Amazon Q Developer in chat applications ) での手動作業する必要がある。そこで得た ID を上記のシークレットに登録すること。
+| パラメータ | 作成者 |
+| --- | --- |
+| `docs_user` / `docs_password` | Terraform が生成する。手作業は不要 |
+| `slack_team_id` / `slack_channel_id` | 手作業で登録する |
+
+```sh
+aws ssm put-parameter --type SecureString \
+  --name /kusuri-api-poc/dev/slack_channel_id --value "C01ABCDEFGH"
+```
+
+Slack の識別子は、AWS コンソール ( Amazon Q Developer in chat applications ) でワークスペースを認可すると得られる。認可しない場合は `locals.tf` の `slack_enabled` を `false` にすると、パラメータなしで apply できる。
+
+仕様書の資格情報は Terraform が生成するため、使うときは SSM から読み出す。値を変えたい場合は SSM を直接書き換える ( Terraform は上書きしない ) 。
+
+```sh
+aws ssm get-parameter --name /kusuri-api-poc/dev/docs_password \
+  --with-decryption --query Parameter.Value --output text
+```
 
 ## その他役立ちコマンド
 

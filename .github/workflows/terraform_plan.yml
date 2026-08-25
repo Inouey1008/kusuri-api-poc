@@ -17,9 +17,6 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
 
-    # apply と同じ Secrets を使わないと差分が出る
-    environment: ${{ github.base_ref == 'release/prod' && 'prod' || 'dev' }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -43,12 +40,6 @@ jobs:
       # plan が失敗してもコメントは残したいので、ここでは終了コードを記録するだけ
       - name: plan
         id: plan
-        env:
-          # apply と同じ値を渡さないと Slack 連携が差分として出る
-          TF_VAR_slack_team_id: ${{ secrets.SLACK_TEAM_ID }}
-          TF_VAR_slack_channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
-          TF_VAR_docs_user: ${{ secrets.DOCS_USER }}
-          TF_VAR_docs_password: ${{ secrets.DOCS_PASSWORD }}
         run: |
           terraform -chdir=terraform/env/${{ steps.env.outputs.name }} plan -no-color 2>&1 | tee plan.txt
           echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"

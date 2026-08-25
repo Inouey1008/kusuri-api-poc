@@ -21,3 +21,7 @@ variable "oidc_provider_arn" {
 variable "iam_policy_terraform_backend_arn" {
   type = string
 }
+
+variable "region" {
+  type = string
+}
