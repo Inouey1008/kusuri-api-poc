@@ -2,6 +2,7 @@ module "terraform_actions_role" {
   source = "../../../modules/terraform_actions_role"
 
   shared_prefix                    = local.shared_prefix
+  region                           = local.region
   subject_prefix                   = local.subject_prefix
   apply_branches                   = local.apply_branches
   oidc_provider_arn                = module.github_actions_oidc_provider.oidc_provider_arn
