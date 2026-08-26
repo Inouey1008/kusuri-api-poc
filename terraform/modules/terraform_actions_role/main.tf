@@ -85,28 +85,18 @@ data "aws_iam_policy_document" "terraform_apply" {
     resources = ["*"]
   }
 
-  # Lambda 実行ロールと Scheduler 実行ロールの管理
+  # このプロジェクトが作るロールに限定する。
+  # アクションを列挙すると、属性を足すたびに漏れて apply が止まる
   statement {
-    actions = [
-      "iam:CreateRole",
-      "iam:DeleteRole",
-      "iam:GetRole",
-      "iam:ListRolePolicies",
-      "iam:ListAttachedRolePolicies",
-      "iam:ListInstanceProfilesForRole",
-      "iam:AttachRolePolicy",
-      "iam:DetachRolePolicy",
-      "iam:PutRolePolicy",
-      "iam:GetRolePolicy",
-      "iam:DeleteRolePolicy",
-      "iam:TagRole",
-      "iam:UntagRole",
-      "iam:PassRole",
-      "iam:UpdateAssumeRolePolicy",
-      "iam:UpdateRole",
-      "iam:UpdateRoleDescription",
-    ]
-    resources = ["*"]
+    actions   = ["iam:*"]
+    resources = ["arn:aws:iam::*:role/${var.shared_prefix}-*"]
+  }
+
+  # 自分自身の権限を書き換えられないようにする
+  statement {
+    effect    = "Deny"
+    actions   = ["iam:*"]
+    resources = [aws_iam_role.terraform_plan.arn, aws_iam_role.terraform_apply.arn]
   }
 
   # Chatbot は初回に、サービスにリンクされたロールを自分で作る
