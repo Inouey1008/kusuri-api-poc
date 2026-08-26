@@ -102,8 +102,21 @@ data "aws_iam_policy_document" "terraform_apply" {
       "iam:TagRole",
       "iam:UntagRole",
       "iam:PassRole",
+      "iam:UpdateAssumeRolePolicy",
     ]
     resources = ["*"]
+  }
+
+  # Chatbot は初回に、サービスにリンクされたロールを自分で作る
+  statement {
+    actions   = ["iam:CreateServiceLinkedRole"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:AWSServiceName"
+      values   = ["management.chatbot.amazonaws.com"]
+    }
   }
 
   # 仕様書の資格情報を SSM で管理する
