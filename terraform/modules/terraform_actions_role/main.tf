@@ -103,6 +103,8 @@ data "aws_iam_policy_document" "terraform_apply" {
       "iam:UntagRole",
       "iam:PassRole",
       "iam:UpdateAssumeRolePolicy",
+      "iam:UpdateRole",
+      "iam:UpdateRoleDescription",
     ]
     resources = ["*"]
   }
