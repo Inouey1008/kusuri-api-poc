@@ -14,6 +14,7 @@ import (
 	echoadapter "github.com/awslabs/aws-lambda-go-api-proxy/echo"
 	"github.com/labstack/echo/v4"
 
+	"github.com/inouey1008/kusuri-api-poc/internal/config"
 	"github.com/inouey1008/kusuri-api-poc/internal/logx"
 	"github.com/inouey1008/kusuri-api-poc/internal/server"
 	"github.com/inouey1008/kusuri-api-poc/internal/sqlite"
@@ -25,8 +26,17 @@ const (
 )
 
 func main() {
+	// Logger 設定
 	logx.Init()
 
+	// 環境変数の検証
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("invalid configuration", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	// DB との接続検証
 	db, err := sqlite.Connect(context.Background(), dbPath)
 	if err != nil {
 		slog.Error("failed to connect database", slog.Any("error", err), slog.String("path", dbPath))
@@ -34,27 +44,22 @@ func main() {
 	}
 	defer func() { _ = db.Close() }()
 
-	e := server.New(db)
+	e := server.New(cfg, db)
 
-	if os.Getenv("AWS_LAMBDA_RUNTIME_API") != "" {
+	if cfg.OnLambda() {
 		// Function URLs は API Gateway v2 ペイロード形式のため NewV2 を使う。
 		lambda.Start(echoadapter.NewV2(e).ProxyWithContext)
 		return
 	}
 
-	if err := listenAndServe(e); err != nil {
+	if err := listenAndServe(e, cfg.Port); err != nil {
 		slog.Error("server error", slog.Any("error", err))
 		os.Exit(1)
 	}
 }
 
 // SIGINT / SIGTERM を受けたら処理中のリクエストを待ってから終了する
-func listenAndServe(e *echo.Echo) error {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
+func listenAndServe(e *echo.Echo, port string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 

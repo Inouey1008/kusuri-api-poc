@@ -1,83 +1,99 @@
 # kusuri-api-poc
 
-添付文書 Pocket の API 作成に向けて Lambda (provided.al2023 / arm64) 上で Go + SQLite が動くかを検証する PoC
-
-## 開発環境
-
-- Go 1.26.5 (mise で管理)
-- sqlite3 (システムのものを使用)
-- Terraform 1.15.8 (`.terraform-version` で指定)
+- 添付文書 Pocket の API の PoC
+- Go + Echo で実装し、Lambda へデプロイする
 
 ## セットアップ
 
-ツールの導入・依存の取得・ローカル DB の作成をまとめて行う。
+1. [mise](https://mise.jdx.dev/) をインストールする
+
+2. `.env` を生成
+
+```sh
+cp .env.example .env
+```
+
+3. ツールの導入・依存の取得・ローカル DB の作成をおこなう
 
 ```sh
 make setup
 ```
 
-## ローカルサーバー起動
+- Go と Terraform のバージョンは [mise.toml](mise.toml) に固定 (CI も同じ値を使う)
+
+4. ローカルサーバー起動
 
 ```sh
-make run    # DB がなければ生成してから起動
+make run # http://localhost:8080 で起動
 ```
 
-`http://localhost:8080` で待ち受ける。`PORT` 環境変数で変更可能。
+- API 仕様書は http://localhost:8080/docs で開ける
 
-```sh
-curl 'http://localhost:8080/drugs?q=エゼチミブ'
-```
+## 環境変数
 
-## デプロイ
+- 一覧は [config.go](internal/config/config.go) を参照
 
-`release/dev` `release/prod` へのマージで、対象環境へ自動的に反映される。
+### local 環境
+- `.env` に書かれた値を mise が読み込み設定
 
-インフラの差分は `release/*` への PR に plan の結果がコメントされるので、マージ前にそこで確認する。
+### dev・prod 環境
 
-## インフラ
+- GitHub Secrets に登録した値を、Terraform が Lambda の環境変数として設定
 
-Terraform で管理する。整形は `make tf-fmt`、構文チェック (`terraform validate`) は PR 時に CI が実行する。
+## 開発フロー
 
-### 差分の確認
+### デプロイ
 
-```sh
-terraform -chdir=terraform/env/dev init    # 初回のみ
-terraform -chdir=terraform/env/dev plan
-```
+- `release/dev`・`release/prod` へのマージで、対応する環境へのインフラ構築・アプリケーションのデプロイをする CI (GitHubActions) が走る
+
+### インフラ
+
+- Terraform で管理する
+- `release/*` ブランチへのマージで生成される
 
 ### 初回設定
 
-`locals.tf` の `subject_prefix` に、OIDC トークンの `sub` のプレフィックスを設定する。GitHub は名前変更に耐えるよう数値 ID を含めるため、以下で取得する。
+1. `locals.tf` の `subject_prefix` に、OIDC トークンの `sub` のプレフィックスを設定する。プレフィックスは以下で取得する。
 
 ```sh
 gh api /repos/<owner>/<repo>/actions/oidc/customization/sub --jq '.sub_claim_prefix'
 ```
 
-初回のみ `initial_setup` を apply して、tfstate の保存先と IAM ロールを作成する
+2. tfstate の保存先と IAM ロールを作成する
 
 ```sh
-terraform -chdir=terraform/initial_setup/env/dev init
-terraform -chdir=terraform/initial_setup/env/dev apply
-
-terraform -chdir=terraform/initial_setup/env/prod init
-terraform -chdir=terraform/initial_setup/env/prod apply
+make tf-setup ENV=dev
+make tf-setup ENV=prod
 ```
 
-続けて GitHub 側を設定する。
+3. GitHub に、シークレットを登録する
 
-- リポジトリシークレット `AWS_ACCOUNT_ID` に AWS アカウント ID を登録する
-- `release/dev` `release/prod` ブランチを作成する
+- `AWS_ACCOUNT_ID`: OIDC で引き受けるロールの ARN 組み立てに使用
 
-### IAM ロール
+4. Slack の識別子を SSM パラメータストアに登録する
 
-plan と apply で権限を分けている。apply ロールは対象ブランチへの push でのみ引き受けられる。
+秘密情報は `/kusuri-api-poc/<env>/` 配下に `SecureString` で置き、Terraform が apply 時に読み取って Lambda の環境変数として設定する。CI へは値を渡さない。
 
-| ロール | 権限 | 引き受け条件 |
-|---|---|---|
-| `<prefix>-terraform-plan` | ReadOnly + tfstate 読み書き | PR |
-| `<prefix>-terraform-apply` | Lambda / IAM / Logs + tfstate 読み書き | `release/<env>` への push |
+| パラメータ | 作成者 |
+| --- | --- |
+| `docs_user` / `docs_password` | Terraform が生成する。手作業は不要 |
+| `slack_team_id` / `slack_channel_id` | 手作業で登録する |
 
-## その他コマンド
+```sh
+aws ssm put-parameter --type SecureString \
+  --name /kusuri-api-poc/dev/slack_channel_id --value "C01ABCDEFGH"
+```
+
+Slack の識別子は、AWS コンソール ( Amazon Q Developer in chat applications ) でワークスペースを認可すると得られる。認可しない場合は `locals.tf` の `slack_enabled` を `false` にすると、パラメータなしで apply できる。
+
+仕様書の資格情報は Terraform が生成するため、使うときは SSM から読み出す。値を変えたい場合は SSM を直接書き換える ( Terraform は上書きしない ) 。
+
+```sh
+aws ssm get-parameter --name /kusuri-api-poc/dev/docs_password \
+  --with-decryption --query Parameter.Value --output text
+```
+
+## その他役立ちコマンド
 
 ```sh
 make test      # go test -race ./...
@@ -87,5 +103,11 @@ make gen-db    # ローカル DB を作り直す
 make build     # bootstrap のみ生成 (クロスコンパイルの確認用)
 make zip       # build と gen-db を実行し fn.zip にまとめる
 make clean     # 生成物とビルド/テストキャッシュを削除
-make tf-fmt    # terraform fmt -recursive
+
+make tf-fmt                   # terraform fmt -recursive
+make tf-validate ENV=dev      # Terraform の構文チェック
+make tf-plan ENV=dev          # インフラの差分確認
+make tf-setup ENV=dev         # tfstate の保存先と IAM ロールを作成 (環境ごとに一度だけ)
 ```
+
+- `ENV` は既定値を持たない。環境の取り違えを防ぐため、毎回明示する

@@ -71,6 +71,20 @@ data "aws_iam_policy_document" "terraform_apply" {
     resources = ["*"]
   }
 
+  statement {
+    actions   = ["apigateway:*"]
+    resources = ["*"]
+  }
+
+  statement {
+    actions = [
+      "cloudwatch:*",
+      "sns:*",
+      "chatbot:*",
+    ]
+    resources = ["*"]
+  }
+
   # Lambda 実行ロールと Scheduler 実行ロールの管理
   statement {
     actions = [
@@ -90,6 +104,28 @@ data "aws_iam_policy_document" "terraform_apply" {
       "iam:PassRole",
     ]
     resources = ["*"]
+  }
+
+  # 仕様書の資格情報を SSM で管理する
+  statement {
+    actions = [
+      "ssm:PutParameter",
+      "ssm:DeleteParameter",
+      "ssm:AddTagsToResource",
+      "ssm:RemoveTagsFromResource",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    actions   = ["kms:Encrypt", "kms:GenerateDataKey"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.${var.region}.amazonaws.com"]
+    }
   }
 }
 
@@ -112,4 +148,34 @@ resource "aws_iam_role_policy_attachment" "terraform_apply_readonly" {
 resource "aws_iam_role_policy_attachment" "terraform_apply_backend" {
   role       = aws_iam_role.terraform_apply.name
   policy_arn = var.iam_policy_terraform_backend_arn
+}
+
+# ReadOnlyAccess は SSM の取得までで、SecureString の復号は許可しない
+data "aws_iam_policy_document" "ssm_decrypt" {
+  statement {
+    actions   = ["kms:Decrypt"]
+    resources = ["*"]
+
+    # SSM 経由の復号だけに絞る
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.${var.region}.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_policy" "ssm_decrypt" {
+  name   = "${var.shared_prefix}-ssm-decrypt"
+  policy = data.aws_iam_policy_document.ssm_decrypt.json
+}
+
+resource "aws_iam_role_policy_attachment" "terraform_plan_ssm_decrypt" {
+  role       = aws_iam_role.terraform_plan.name
+  policy_arn = aws_iam_policy.ssm_decrypt.arn
+}
+
+resource "aws_iam_role_policy_attachment" "terraform_apply_ssm_decrypt" {
+  role       = aws_iam_role.terraform_apply.name
+  policy_arn = aws_iam_policy.ssm_decrypt.arn
 }

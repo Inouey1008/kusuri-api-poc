@@ -1,2 +1,6 @@
 [tools]
 go = "1.26.5"
+terraform = "1.15.8"
+
+[env]
+_.file = ".env"
