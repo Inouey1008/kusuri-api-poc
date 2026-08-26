@@ -37,8 +37,9 @@ resource "aws_scheduler_schedule" "warmup" {
 resource "aws_iam_role" "scheduler" {
   count = var.warmup_enabled ? 1 : 0
 
-  name        = "${var.shared_prefix}-api-warmup-scheduler"
-  description = "EventBridge Scheduler が warm-up のために引き受ける"
+  name = "${var.shared_prefix}-api-warmup-scheduler"
+  # IAM の description は ASCII しか受け付けない
+  description = "Assumed by EventBridge Scheduler to warm up the API"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
