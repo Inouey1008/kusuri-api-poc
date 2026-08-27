@@ -38,7 +38,34 @@ make run # http://localhost:8080 で起動
 
 ### dev・prod 環境
 
-- GitHub Secrets に登録した値を、Terraform が Lambda の環境変数として設定
+- SSM パラメータストアに置いた値を、Terraform が apply 時に読み取って Lambda の環境変数として設定 (→ [初回設定](#初回設定))
+
+## 公開構成
+
+```mermaid
+flowchart LR
+    C["クライアント"] --> G["API Gateway<br/>100 req/s"]
+    G --> A["エイリアス current"]
+
+    subgraph L["Lambda (arm64 / provided.al2023)"]
+        A --> B["bootstrap<br/>Go + Echo"]
+        B --> D[("assets/master.db<br/>SQLite")]
+    end
+
+    S["EventBridge Scheduler<br/>5 分ごと"] -.warm-up.-> A
+    B -.構造化ログ.-> W["CloudWatch"]
+    W -->|"ERROR / スロットル / 急増"| N["SNS"]
+    N --> K["Slack"]
+```
+
+| 要素 | 役割 | 定義 |
+|---|---|---|
+| API Gateway | 流量制限 (課金の上限)。超過分は Lambda に届かない | [api_gateway.tf](terraform/modules/api/api_gateway.tf) |
+| エイリアス `current` | 公開中のバージョンを指す。疎通確認後に切り替える | [lambda.tf](terraform/modules/api/lambda.tf) |
+| warm-up | コールドスタートを避ける定期実行。効くのは同時実行 1 枠分 | [warmup.tf](terraform/modules/api/warmup.tf) |
+| 監視 | ERROR 件数・スロットル・リクエスト急増を Slack へ通知 | [monitoring.tf](terraform/modules/api/monitoring.tf) |
+
+- コールドスタートの計測結果は [検証レポート](docs/coldstart-report.md) を参照 (Function URL 時代の計測)
 
 ## 開発フロー
 
@@ -53,7 +80,7 @@ make run # http://localhost:8080 で起動
 
 ### 初回設定
 
-1. `locals.tf` の `subject_prefix` に、OIDC トークンの `sub` のプレフィックスを設定する。プレフィックスは以下で取得する。
+1. `terraform/initial_setup/env/<env>/locals.tf` の `subject_prefix` に、OIDC トークンの `sub` のプレフィックスを設定する。プレフィックスは以下で取得する。
 
 ```sh
 gh api /repos/<owner>/<repo>/actions/oidc/customization/sub --jq '.sub_claim_prefix'
