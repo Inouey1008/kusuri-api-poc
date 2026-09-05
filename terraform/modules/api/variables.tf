@@ -29,12 +29,12 @@ variable "warmup_interval_minutes" {
 
 variable "throttling_rate_limit" {
   type    = number
-  default = 100
+  default = 30
 }
 
 variable "throttling_burst_limit" {
   type    = number
-  default = 200
+  default = 60
 }
 
 variable "cors_allow_origins" {
@@ -42,9 +42,10 @@ variable "cors_allow_origins" {
   default = []
 }
 
+# コールドスタート時でも throttling_rate_limit を捌けるだけ確保する
 variable "reserved_concurrency" {
   type    = number
-  default = 10
+  default = 30
 }
 
 variable "alert_emails" {
