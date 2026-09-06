@@ -59,7 +59,8 @@ jobs:
         env:
           WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           DEPLOY_STATUS: ${{ job.status }}
-          ENV_NAME: ${{ steps.env.outputs.name }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           if [ -z "$WEBHOOK_URL" ]; then
             echo "SLACK_WEBHOOK_URL 未設定のため通知をスキップ"
@@ -67,10 +68,25 @@ jobs:
           fi
           if [ "$DEPLOY_STATUS" = "success" ]; then
             icon="✅"
+            color="#2eb886"
+            mention=""
           else
             icon="❌"
+            color="#a30200"
+            mention="<!channel> "
           fi
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          text="${icon} deploy ${ENV_NAME}: ${DEPLOY_STATUS} | commit ${GITHUB_SHA} by ${GITHUB_ACTOR} | ${run_url}"
-          payload=$(jq -n --arg t "$text" '{text: $t}')
+          payload=$(jq -n \
+            --arg color "$color" --arg icon "$icon" --arg repo "$REPO" \
+            --arg branch "$BRANCH" --arg st "$DEPLOY_STATUS" --arg url "$run_url" \
+            --arg mention "$mention" '
+            { text: ($mention + $icon + " Deploy " + $st + " — " + $repo + " @ " + $branch),
+              attachments: [ { color: $color, blocks: [
+              { type: "section", text: { type: "mrkdwn",
+                text: ($mention + $icon + " *<" + $url + "|Deploy " + $st + ">*") } },
+              { type: "section", fields: [
+                { type: "mrkdwn", text: ("*Repository:*\n" + $repo) },
+                { type: "mrkdwn", text: ("*Branch:*\n`" + $branch + "`") },
+                { type: "mrkdwn", text: ("*Status:*\n" + $st) }
+              ] } ] } ] }')
           curl -sSf -X POST -H 'Content-type: application/json' --data "$payload" "$WEBHOOK_URL"
