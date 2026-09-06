@@ -69,24 +69,21 @@ jobs:
           if [ "$DEPLOY_STATUS" = "success" ]; then
             icon="✅"
             color="#2eb886"
-            mention="<!channel> "
           else
             icon="❌"
             color="#a30200"
-            mention="<!channel> "
           fi
+          mention="<!channel> "
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           payload=$(jq -n \
             --arg color "$color" --arg icon "$icon" --arg repo "$REPO" \
             --arg branch "$BRANCH" --arg st "$DEPLOY_STATUS" --arg url "$run_url" \
             --arg mention "$mention" '
-            { text: ($mention + $icon + " Deploy " + $st + " — " + $repo + " @ " + $branch),
+            { text: ($mention + $icon + " <" + $url + "|Deploy " + $st + ">"),
               attachments: [ { color: $color, blocks: [
-              { type: "section", text: { type: "mrkdwn",
-                text: ($mention + $icon + " *<" + $url + "|Deploy " + $st + ">*") } },
-              { type: "section", fields: [
-                { type: "mrkdwn", text: ("*Repository:*\n" + $repo) },
-                { type: "mrkdwn", text: ("*Branch:*\n`" + $branch + "`") },
-                { type: "mrkdwn", text: ("*Status:*\n" + $st) }
-              ] } ] } ] }')
+                { type: "section", fields: [
+                  { type: "mrkdwn", text: ("*Repository:*\n" + $repo) },
+                  { type: "mrkdwn", text: ("*Branch:*\n`" + $branch + "`") },
+                  { type: "mrkdwn", text: ("*Status:*\n" + $st) }
+                ] } ] } ] }')
           curl -sSf -X POST -H 'Content-type: application/json' --data "$payload" "$WEBHOOK_URL"
