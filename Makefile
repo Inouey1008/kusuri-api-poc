@@ -25,8 +25,10 @@ gen-db:
 	rm -f assets/master.db
 	sqlite3 assets/master.db < assets/gen.sql
 
+VERSION ?= $(shell git rev-parse --short HEAD)
+
 build:
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -trimpath -ldflags="-s -w" -o bootstrap .
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -trimpath -ldflags="-s -w -X main.version=$(VERSION)" -o bootstrap .
 
 # Lambda は /var/task に展開するため、DB は assets/master.db の階層を保つ必要あり
 zip: build gen-db

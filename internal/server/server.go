@@ -3,6 +3,7 @@ package server
 import (
 	"database/sql"
 
+	sentryecho "github.com/getsentry/sentry-go/echo"
 	"github.com/labstack/echo/v4"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/config"
@@ -10,6 +11,7 @@ import (
 	"github.com/inouey1008/kusuri-api-poc/internal/features/drug"
 	"github.com/inouey1008/kusuri-api-poc/internal/features/health"
 	"github.com/inouey1008/kusuri-api-poc/internal/middleware"
+	"github.com/inouey1008/kusuri-api-poc/internal/sentryx"
 )
 
 type Registerer interface {
@@ -32,6 +34,11 @@ func New(config config.Config, db *sql.DB) *echo.Echo {
 	}
 
 	middlewares := []echo.MiddlewareFunc{
+		sentryecho.New(sentryecho.Options{
+			Repanic:         true,
+			WaitForDelivery: true, // Lambda はコンテナ凍結前に配送を待つ必要があるため明示する
+			Timeout:         sentryx.FlushTimeout,
+		}),
 		middleware.Logging,
 		middleware.Recovery, // !! Recovery を内側に置くことで、panic した要求も 500 として Logging に記録される
 	}

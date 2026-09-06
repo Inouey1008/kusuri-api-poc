@@ -53,11 +53,6 @@ variable "alert_emails" {
   default = []
 }
 
-variable "error_alarm_threshold" {
-  type    = number
-  default = 5
-}
-
 variable "request_spike_threshold" {
   type    = number
   default = 10000
@@ -71,6 +66,17 @@ variable "slack_team_id" {
 variable "slack_channel_id" {
   type    = string
   default = ""
+}
+
+variable "sentry_dsn" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
+variable "sentry_traces_sample_rate" {
+  type    = number
+  default = 0.0
 }
 
 variable "docs_user" {

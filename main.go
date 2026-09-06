@@ -12,10 +12,12 @@ import (
 
 	"github.com/aws/aws-lambda-go/lambda"
 	echoadapter "github.com/awslabs/aws-lambda-go-api-proxy/echo"
+	"github.com/getsentry/sentry-go"
 	"github.com/labstack/echo/v4"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/config"
 	"github.com/inouey1008/kusuri-api-poc/internal/logx"
+	"github.com/inouey1008/kusuri-api-poc/internal/sentryx"
 	"github.com/inouey1008/kusuri-api-poc/internal/server"
 	"github.com/inouey1008/kusuri-api-poc/internal/sqlite"
 )
@@ -24,6 +26,9 @@ const (
 	dbPath          = "./assets/master.db"
 	shutdownTimeout = 10 * time.Second
 )
+
+// version はビルド時に ldflags (-X main.version=...) で上書きされる。
+var version = "dev"
 
 func main() {
 	// Logger 設定
@@ -34,6 +39,18 @@ func main() {
 	if err != nil {
 		slog.Error("invalid configuration", slog.Any("error", err))
 		os.Exit(1)
+	}
+
+	if cfg.SentryEnabled() {
+		if err := sentry.Init(sentry.ClientOptions{
+			Dsn:              cfg.SentryDSN,
+			Environment:      cfg.Environment,
+			Release:          version,
+			TracesSampleRate: cfg.SentryTracesSampleRate,
+			BeforeSend:       sentryx.ScrubEvent,
+		}); err != nil {
+			slog.Error("failed to init sentry", slog.Any("error", err)) // 補助機能なので起動は止めない
+		}
 	}
 
 	// DB との接続検証

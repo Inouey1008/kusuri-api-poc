@@ -25,6 +25,9 @@ resource "aws_lambda_function" "api" {
       DOCS_USER     = var.docs_user
       DOCS_PASSWORD = var.docs_password
 
+      SENTRY_DSN                = var.sentry_dsn
+      SENTRY_TRACES_SAMPLE_RATE = tostring(var.sentry_traces_sample_rate)
+
       # アプリが必須にしているが、Lambda では使われない
       PORT = "8080"
     }

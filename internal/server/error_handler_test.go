@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/errorx"
+	"github.com/inouey1008/kusuri-api-poc/internal/sentryx"
 	"github.com/inouey1008/kusuri-api-poc/internal/server"
 	"github.com/inouey1008/kusuri-api-poc/internal/validation"
 )
@@ -91,5 +92,30 @@ func TestErrorHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, recorder.Code)
 		assert.Equal(t, "partial", recorder.Body.String())
+	})
+
+	t.Run(`Sentry の hub がなくても panic せず、応答は変わらない`, func(t *testing.T) {
+		var recorder *httptest.ResponseRecorder
+
+		require.NotPanics(t, func() {
+			recorder = callHandler(t, func(c echo.Context) error {
+				return errors.New("something went wrong")
+			})
+		})
+
+		require.Equal(t, http.StatusInternalServerError, recorder.Code)
+
+		var body errorx.Errorx
+		require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+		assert.Equal(t, "INTERNAL_ERROR", body.Code)
+	})
+
+	t.Run(`Recovery が送信済みの印を付けていても、hub がなければ安全に処理される`, func(t *testing.T) {
+		recorder := callHandler(t, func(c echo.Context) error {
+			c.Set(sentryx.ReportedKey, true)
+			return errorx.Internal
+		})
+
+		require.Equal(t, http.StatusInternalServerError, recorder.Code)
 	})
 }

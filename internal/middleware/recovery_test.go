@@ -12,6 +12,7 @@ import (
 
 	"github.com/inouey1008/kusuri-api-poc/internal/errorx"
 	"github.com/inouey1008/kusuri-api-poc/internal/middleware"
+	"github.com/inouey1008/kusuri-api-poc/internal/sentryx"
 )
 
 func newContext(t *testing.T) echo.Context {
@@ -97,5 +98,22 @@ func TestRecovery(t *testing.T) {
 		assert.Equal(t, "ERROR", entry.Level)
 		assert.Equal(t, "panic", entry.Message)
 		assert.NotEmpty(t, entry.Stack)
+	})
+
+	// Sentry への送信自体は sentry-go 内部が行うため、送信が1回だけであることの厳密な検証には
+	// hub のモックが要る。ここでは hub がない (DSN 未設定など) 場合に panic せず、
+	// error_handler と二重送信しないための印も立てないことだけを確認する。
+	t.Run(`Sentry の hub がなければ panic せず、ReportedKey も立てない`, func(t *testing.T) {
+		captureLog(t)
+		c := newContext(t)
+
+		require.NotPanics(t, func() {
+			_ = middleware.Recovery(func(c echo.Context) error {
+				panic("something went wrong")
+			})(c)
+		})
+
+		reported, _ := c.Get(sentryx.ReportedKey).(bool)
+		assert.False(t, reported, "hub がないので Sentry 送信済みの印は立たない")
 	})
 }
