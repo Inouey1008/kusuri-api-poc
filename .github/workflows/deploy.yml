@@ -69,7 +69,7 @@ jobs:
           if [ "$DEPLOY_STATUS" = "success" ]; then
             icon="✅"
             color="#2eb886"
-            mention=""
+            mention="<!channel> "
           else
             icon="❌"
             color="#a30200"
