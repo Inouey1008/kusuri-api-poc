@@ -51,3 +51,21 @@ jobs:
       # バージョンを発行 → 疎通確認 → エイリアス切り替え
       - name: deploy
         run: scripts/deploy.sh ${{ steps.env.outputs.name }}
+
+      # デプロイの成否を SNS(alerts) 経由で Slack へ通知する (Chatbot のカスタム通知形式)
+      - name: notify deploy result
+        if: always()
+        env:
+          DEPLOY_STATUS: ${{ job.status }}
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          ENV_NAME: ${{ steps.env.outputs.name }}
+        run: |
+          if [ "$DEPLOY_STATUS" = "success" ]; then
+            icon="✅"
+          else
+            icon="❌"
+          fi
+          topic_arn="arn:aws:sns:ap-northeast-1:${ACCOUNT_ID}:kusuri-api-poc-${ENV_NAME}-alerts"
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          message=$(printf '{"version":"1.0","source":"custom","content":{"title":"%s deploy %s: %s","description":"commit %s by %s | %s"}}' "$icon" "$ENV_NAME" "$DEPLOY_STATUS" "$GITHUB_SHA" "$GITHUB_ACTOR" "$run_url")
+          aws sns publish --topic-arn "$topic_arn" --message "$message"
