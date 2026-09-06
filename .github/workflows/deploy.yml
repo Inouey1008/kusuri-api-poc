@@ -52,20 +52,25 @@ jobs:
       - name: deploy
         run: scripts/deploy.sh ${{ steps.env.outputs.name }}
 
-      # デプロイの成否を SNS(alerts) 経由で Slack へ通知する (Chatbot のカスタム通知形式)
+      # デプロイの成否を Slack Incoming Webhook へ通知する
+      # SLACK_WEBHOOK_URL (GH secret) が未設定なら通知をスキップする
       - name: notify deploy result
         if: always()
         env:
+          WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           DEPLOY_STATUS: ${{ job.status }}
-          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           ENV_NAME: ${{ steps.env.outputs.name }}
         run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL 未設定のため通知をスキップ"
+            exit 0
+          fi
           if [ "$DEPLOY_STATUS" = "success" ]; then
             icon="✅"
           else
             icon="❌"
           fi
-          topic_arn="arn:aws:sns:ap-northeast-1:${ACCOUNT_ID}:kusuri-api-poc-${ENV_NAME}-alerts"
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          message=$(printf '{"version":"1.0","source":"custom","content":{"title":"%s deploy %s: %s","description":"commit %s by %s | %s"}}' "$icon" "$ENV_NAME" "$DEPLOY_STATUS" "$GITHUB_SHA" "$GITHUB_ACTOR" "$run_url")
-          aws sns publish --topic-arn "$topic_arn" --message "$message"
+          text="${icon} deploy ${ENV_NAME}: ${DEPLOY_STATUS} | commit ${GITHUB_SHA} by ${GITHUB_ACTOR} | ${run_url}"
+          payload=$(jq -n --arg t "$text" '{text: $t}')
+          curl -sSf -X POST -H 'Content-type: application/json' --data "$payload" "$WEBHOOK_URL"
