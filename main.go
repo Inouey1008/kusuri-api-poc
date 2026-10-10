@@ -26,9 +26,6 @@ const (
 	shutdownTimeout = 10 * time.Second
 )
 
-// version はビルド時に ldflags (-X main.version=...) で上書きされる。
-var version = "dev"
-
 func main() {
 	// Logger 設定
 	logx.Init()
@@ -41,7 +38,7 @@ func main() {
 	}
 
 	// Sentry 初期化
-	if err := sentryx.Init(cfg, version); err != nil {
+	if err := sentryx.Init(cfg); err != nil {
 		slog.Error("failed to init sentry", slog.Any("error", err))
 		os.Exit(1)
 	}

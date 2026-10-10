@@ -31,7 +31,7 @@ const (
 // Sentry を初期化する
 // DSN が空なら、未設定とみなし、連携せず続行する
 // DSN が不正なら error を返す
-func Init(cfg config.Config, release string) error {
+func Init(cfg config.Config) error {
 	if cfg.SentryDSN == "" {
 		msg := "sentry is disabled"
 		args := []any{slog.String("reason", "SENTRY_DSN is not set")}
@@ -45,10 +45,10 @@ func Init(cfg config.Config, release string) error {
 		return nil
 	}
 
+	// Release は指定しない。SDK がバイナリに埋め込まれたコミット ID (vcs.revision) を自動で使う。
 	return sentry.Init(sentry.ClientOptions{
 		Dsn:              cfg.SentryDSN,
 		Environment:      cfg.Environment,
-		Release:          release,
 		TracesSampleRate: cfg.SentryTracesSampleRate,
 		BeforeSend:       maskEvent,
 	})

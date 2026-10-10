@@ -87,7 +87,7 @@ func TestInit(t *testing.T) {
 
 		var err error
 		require.NotPanics(t, func() {
-			err = sentryx.Init(config.Config{Environment: "local"}, "1.0.0")
+			err = sentryx.Init(config.Config{Environment: "local"})
 		})
 
 		require.NoError(t, err)
@@ -104,7 +104,7 @@ func TestInit(t *testing.T) {
 
 			var err error
 			require.NotPanics(t, func() {
-				err = sentryx.Init(config.Config{Environment: env}, "1.0.0")
+				err = sentryx.Init(config.Config{Environment: env})
 			})
 
 			require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestInit(t *testing.T) {
 		})
 	}
 
-	t.Run(`dev 環境で DSN を設定すると nil を返し、Environment・Release・TracesSampleRate が client に反映される`, func(t *testing.T) {
+	t.Run(`dev 環境で DSN を設定すると nil を返し、Environment・TracesSampleRate が client に反映される`, func(t *testing.T) {
 		withRestoredHub(t)
 
 		cfg := config.Config{
@@ -122,7 +122,7 @@ func TestInit(t *testing.T) {
 			SentryTracesSampleRate: 0.5,
 		}
 
-		err := sentryx.Init(cfg, "1.2.3")
+		err := sentryx.Init(cfg)
 		require.NoError(t, err)
 
 		client := sentry.CurrentHub().Client()
@@ -130,7 +130,6 @@ func TestInit(t *testing.T) {
 
 		options := client.Options()
 		assert.Equal(t, "dev", options.Environment)
-		assert.Equal(t, "1.2.3", options.Release)
 		assert.Equal(t, 0.5, options.TracesSampleRate)
 	})
 
@@ -141,7 +140,7 @@ func TestInit(t *testing.T) {
 
 		var err error
 		require.NotPanics(t, func() {
-			err = sentryx.Init(cfg, "1.0.0")
+			err = sentryx.Init(cfg)
 		})
 
 		assert.Error(t, err)
