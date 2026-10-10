@@ -12,7 +12,6 @@ import (
 
 	"github.com/aws/aws-lambda-go/lambda"
 	echoadapter "github.com/awslabs/aws-lambda-go-api-proxy/echo"
-	"github.com/getsentry/sentry-go"
 	"github.com/labstack/echo/v4"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/config"
@@ -41,16 +40,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	if cfg.SentryEnabled() {
-		if err := sentry.Init(sentry.ClientOptions{
-			Dsn:              cfg.SentryDSN,
-			Environment:      cfg.Environment,
-			Release:          version,
-			TracesSampleRate: cfg.SentryTracesSampleRate,
-			BeforeSend:       sentryx.ScrubEvent,
-		}); err != nil {
-			slog.Error("failed to init sentry", slog.Any("error", err)) // 補助機能なので起動は止めない
-		}
+	// Sentry 初期化
+	if err := sentryx.Init(cfg, version); err != nil {
+		slog.Error("failed to init sentry", slog.Any("error", err))
+		os.Exit(1)
 	}
 
 	// DB との接続検証

@@ -13,6 +13,8 @@ import (
 
 	"github.com/awslabs/aws-lambda-go-api-proxy/core"
 	"github.com/labstack/echo/v4"
+
+	"github.com/inouey1008/kusuri-api-poc/internal/masking"
 )
 
 // ログに載せるボディの上限。これを超えるものは記録しない
@@ -27,7 +29,7 @@ func Logging(next echo.HandlerFunc) echo.HandlerFunc {
 			slog.String("request_id", requestID),
 			slog.String("method", c.Request().Method),
 			slog.String("path", c.Request().URL.Path),
-			slog.Any("query", sanitizeQuery(c.QueryParams())),
+			slog.Any("query", masking.Values(c.QueryParams())),
 			slog.Any("headers", pickHeaders(c.Request().Header)),
 		}
 
@@ -121,5 +123,5 @@ func readBodyForLog(c echo.Context) (any, bool) {
 		return nil, false
 	}
 
-	return sanitizeJSON(decoded), true
+	return masking.JSON(decoded), true
 }

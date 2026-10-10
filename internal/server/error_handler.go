@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	sentryecho "github.com/getsentry/sentry-go/echo"
 	"github.com/labstack/echo/v4"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/errorx"
@@ -44,23 +43,7 @@ func errorHandler(err error, c echo.Context) {
 		slog.ErrorContext(c.Request().Context(), "failed to write error response", slog.Any("error", writeErr))
 	}
 
-	reportToSentry(c, err)
-}
-
-// reportToSentry はハンドラが返した error を Sentry へ送る。
-// panic は Recovery が既にスタック付きで送信済みなので、その場合はここでは送らない。
-func reportToSentry(c echo.Context, err error) {
-	if reported, _ := c.Get(sentryx.ReportedKey).(bool); reported {
-		return
-	}
-
-	hub := sentryecho.GetHubFromContext(c)
-	if hub == nil { // DSN 未設定など Sentry が無効なとき
-		return
-	}
-
-	hub.CaptureException(err)
-	hub.Flush(sentryx.FlushTimeout)
+	sentryx.Report(c, err)
 }
 
 // 404 → "NOT_FOUND" のように、status から言語非依存の識別子を作る

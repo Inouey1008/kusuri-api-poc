@@ -33,6 +33,10 @@ func New(config config.Config, db *sql.DB) *echo.Echo {
 		drugHandler,
 	}
 
+	// スライスの先頭ほど外側のミドルウェアになる (e.Use(middlewares...) へ渡した順に外側から適用される)。
+	// sentryecho を最外側に置くのは、リクエストごとに複製した *sentry.Hub を echo.Context に載せる役目があり、
+	// 内側の Recovery や errorHandler が sentryecho.GetHubFromContext で hub を取れるのはこの順序が前提のため。
+	// 逆順にすると hub が nil になり Sentry へ送信されなくなる
 	middlewares := []echo.MiddlewareFunc{
 		sentryecho.New(sentryecho.Options{
 			Repanic:         true,
@@ -40,7 +44,7 @@ func New(config config.Config, db *sql.DB) *echo.Echo {
 			Timeout:         sentryx.FlushTimeout,
 		}),
 		middleware.Logging,
-		middleware.Recovery, // !! Recovery を内側に置くことで、panic した要求も 500 として Logging に記録される
+		middleware.Recovery, // !! Recovery を最内側に置くことで、panic した要求も 500 として Logging に記録される
 	}
 
 	return newServer(registerers, middlewares)

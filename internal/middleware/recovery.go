@@ -4,11 +4,9 @@ import (
 	"log/slog"
 	"runtime/debug"
 
-	sentryecho "github.com/getsentry/sentry-go/echo"
 	"github.com/labstack/echo/v4"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/errorx"
-	"github.com/inouey1008/kusuri-api-poc/internal/sentryx"
 )
 
 func Recovery(next echo.HandlerFunc) echo.HandlerFunc {
@@ -26,16 +24,9 @@ func Recovery(next echo.HandlerFunc) echo.HandlerFunc {
 				slog.String("stack", string(debug.Stack())),
 			)
 
-			// panic した時点のスタックで送信し、error_handler での二重送信を防ぐ印を残す
-			if hub := sentryecho.GetHubFromContext(c); hub != nil {
-				hub.RecoverWithContext(c.Request().Context(), recovered)
-				hub.Flush(sentryx.FlushTimeout)
-				c.Set(sentryx.ReportedKey, true)
-			}
-
-			// panic を捕まえて 500 に変換する
+			// panic を error に変えて返す。応答は errorHandler が汎用の 500 にする
 			// 捕まえないと panic はハンドラの外まで抜け、Lambda が 502 を返す
-			err = errorx.Internal
+			err = errorx.NewPanic(recovered)
 		}()
 
 		return next(c)

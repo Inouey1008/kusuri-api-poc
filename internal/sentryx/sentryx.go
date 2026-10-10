@@ -1,37 +1,123 @@
 // Package sentryx は Sentry 連携の共通処理をまとめる。
-// middleware / server から参照される一方でそれらに依存しないよう、独立したパッケージにしている。
+// 初期化 (Init) と、capture の直後に Flush を呼ぶ処理 (Report) を集約する。
+// 後者をまとめているのは、呼び出し側で Flush を書き忘れると
+// Lambda のコンテナ凍結でイベントが黙って消えてしまうため。
+//
+// 依存は echo / sentryecho と internal/config・internal/errorx・internal/masking に限る。
+// internal/middleware・internal/server からは参照される側なので、
+// 循環参照を避けるためそれらには依存しない。
 package sentryx
 
 import (
-	"strings"
+	"errors"
+	"log/slog"
+	"net/url"
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	sentryecho "github.com/getsentry/sentry-go/echo"
+	"github.com/labstack/echo/v4"
+
+	"github.com/inouey1008/kusuri-api-poc/internal/config"
+	"github.com/inouey1008/kusuri-api-poc/internal/errorx"
+	"github.com/inouey1008/kusuri-api-poc/internal/masking"
 )
 
 const (
-	// FlushTimeout はイベント送信を待つ上限時間。Lambda はレスポンス後にコンテナが凍結され得るため、
-	// ハンドラを抜ける前に同期的に flush してこの時間だけ待つ。
+	// FlushTimeout は送信完了を待つ上限時間。
 	FlushTimeout = 2 * time.Second
-
-	// ReportedKey は Recovery が panic を Sentry へ送信済みであることを示す echo.Context のキー。
-	// error_handler での二重送信を防ぐために使う。
-	ReportedKey = "sentry_reported"
 )
 
-// ScrubEvent は Authorization / Cookie など機微なヘッダを送信前にマスクする (BeforeSend)。
-func ScrubEvent(event *sentry.Event, _ *sentry.EventHint) *sentry.Event {
+// Sentry を初期化する
+// DSN が空なら、未設定とみなし、連携せず続行する
+// DSN が不正なら error を返す
+func Init(cfg config.Config, release string) error {
+	if cfg.SentryDSN == "" {
+		msg := "sentry is disabled"
+		args := []any{slog.String("reason", "SENTRY_DSN is not set")}
+		if cfg.IsLocal() {
+			// local では Info に留める
+			slog.Info(msg, args...)
+		} else {
+			// デプロイ先では監視が効いていない状態に気づけるよう Warn で残す
+			slog.Warn(msg, args...)
+		}
+		return nil
+	}
+
+	return sentry.Init(sentry.ClientOptions{
+		Dsn:              cfg.SentryDSN,
+		Environment:      cfg.Environment,
+		Release:          release,
+		TracesSampleRate: cfg.SentryTracesSampleRate,
+		BeforeSend:       maskEvent,
+	})
+}
+
+// Report は error を Sentry へ送信し、送信完了まで待つ。送信はここに一本化している。
+func Report(c echo.Context, err error) {
+	hub := sentryecho.GetHubFromContext(c)
+	if hub == nil { // DSN 未設定など Sentry が無効なとき
+		return
+	}
+
+	var panicErr *errorx.Panic
+	if errors.As(err, &panicErr) {
+		// panic は致命的な不具合なので、通常の error と区別できるよう Fatal で送る
+		hub.WithScope(func(scope *sentry.Scope) {
+			scope.SetLevel(sentry.LevelFatal)
+			hub.CaptureException(err)
+		})
+	} else {
+		// 通常の error は Error レベルで送る
+		hub.CaptureException(err)
+	}
+
+	// CaptureException は送信を予約するだけで、実際の送信は裏の goroutine が行う。
+	// Lambda はレスポンスを返すとコンテナを凍結するので、送り終える前に止まらないようここで待つ。
+	hub.Flush(FlushTimeout)
+}
+
+// maskEvent は Authorization や API キーなど機微な値を送信前に伏せる (BeforeSend)。
+// 判定は masking に寄せ、ログ側と基準がズレないようにしている。
+func maskEvent(event *sentry.Event, _ *sentry.EventHint) *sentry.Event {
+	// リクエスト情報がないイベントの場合は、何もしない
 	if event.Request == nil {
 		return event
 	}
 
+	// Cookie
+	// Sentry 側で自動的に送信されるので、ここでは空にする
 	event.Request.Cookies = ""
+
+	// Header
+	// Authorization や API キーなどのマスキング
 	for name := range event.Request.Headers {
-		switch strings.ToLower(name) {
-		case "authorization", "cookie", "set-cookie":
-			event.Request.Headers[name] = "***"
+		if masking.IsSensitive(name) {
+			event.Request.Headers[name] = masking.MaskedValue
 		}
 	}
 
+	// QueryString
+	// Authorization や API キーなどのマスキング
+	event.Request.QueryString = maskQueryString(event.Request.QueryString)
+
 	return event
+}
+
+// マスクした結果でクエリ文字列を組み立て直す。
+// 解釈できないクエリは、漏らすより捨てる方を選ぶ。
+func maskQueryString(raw string) string {
+	if raw == "" {
+		return ""
+	}
+
+	values, err := url.ParseQuery(raw)
+	// ParseQuery が失敗するのは、クエリ文字列が不正な場合のみ。
+	// その場合は、捨てる方が安全なので、マスク済みの値を返す。
+	if err != nil {
+		return masking.MaskedValue
+	}
+
+	return url.Values(masking.Values(values)).Encode()
 }

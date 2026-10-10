@@ -49,23 +49,23 @@ func TestLoad(t *testing.T) {
 		}
 	})
 
-	t.Run(`SENTRY_DSN が未設定なら Sentry 連携は無効になる`, func(t *testing.T) {
+	t.Run(`SENTRY_DSN が未設定なら空文字になる`, func(t *testing.T) {
 		setRequired(t)
 
 		cfg, err := config.Load()
 
 		require.NoError(t, err)
-		assert.False(t, cfg.SentryEnabled())
+		assert.Empty(t, cfg.SentryDSN)
 	})
 
-	t.Run(`SENTRY_DSN を設定すると Sentry 連携が有効になる`, func(t *testing.T) {
+	t.Run(`SENTRY_DSN を設定すると反映される`, func(t *testing.T) {
 		setRequired(t)
 		t.Setenv("SENTRY_DSN", "https://example.com/1")
 
 		cfg, err := config.Load()
 
 		require.NoError(t, err)
-		assert.True(t, cfg.SentryEnabled())
+		assert.Equal(t, "https://example.com/1", cfg.SentryDSN)
 	})
 
 	t.Run(`SENTRY_TRACES_SAMPLE_RATE が未設定なら 0.0 になる`, func(t *testing.T) {
@@ -103,20 +103,6 @@ func TestConfig_IsLocal(t *testing.T) {
 				assert.Equal(t, expected, cfg.IsLocal())
 			})
 		}
-	})
-}
-
-func TestConfig_SentryEnabled(t *testing.T) {
-	t.Run(`SentryDSN が空なら false`, func(t *testing.T) {
-		cfg := config.Config{}
-
-		assert.False(t, cfg.SentryEnabled())
-	})
-
-	t.Run(`SentryDSN が設定されていれば true`, func(t *testing.T) {
-		cfg := config.Config{SentryDSN: "https://example.com/1"}
-
-		assert.True(t, cfg.SentryEnabled())
 	})
 }
 

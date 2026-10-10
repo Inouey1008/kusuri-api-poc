@@ -119,7 +119,7 @@ aws ssm put-parameter --type SecureString \
 
 Slack の識別子は、AWS コンソール ( Amazon Q Developer in chat applications ) でワークスペースを認可すると得られる。認可しない場合は `locals.tf` の `slack_enabled` を `false` にすると、パラメータなしで apply できる。
 
-Sentry の DSN は、Sentry のプロジェクト設定から取得する。使わない場合は `locals.tf` の `sentry_enabled` を `false` にすると、パラメータなしで apply できる (Sentry 連携は無効になる) 。
+Sentry の DSN は、Sentry のプロジェクト設定から取得する。使わない場合は `locals.tf` の `sentry_enabled` を `false` にすると、パラメータなしで apply できる (Sentry 連携は無効になり、起動時に Warn ログが出る) 。
 
 仕様書の資格情報は Terraform が生成するため、使うときは SSM から読み出す。値を変えたい場合は SSM を直接書き換える ( Terraform は上書きしない ) 。
 
