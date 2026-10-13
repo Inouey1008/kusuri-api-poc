@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/inouey1008/kusuri-api-poc/internal/config"
 	"github.com/inouey1008/kusuri-api-poc/internal/errorx"
 	"github.com/inouey1008/kusuri-api-poc/internal/server"
 )
@@ -87,4 +88,25 @@ func TestNewWith_MiddlewareOrder(t *testing.T) {
 	sendGet(t, e, "/drugs")
 
 	assert.Equal(t, []string{"first", "second"}, order, "先に定義した middleware から実行される")
+}
+
+func TestNew_RequestID(t *testing.T) {
+	// 本番と同じミドルウェア構成。/health は DB を使わないので nil で足りる
+	e := server.New(config.Config{}, nil)
+
+	t.Run(`X-Request-Id を受け取ればレスポンスヘッダへそのまま返す`, func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		httpRequest := httptest.NewRequest(http.MethodGet, "/health", nil)
+		httpRequest.Header.Set(echo.HeaderXRequestID, "given-id")
+
+		e.ServeHTTP(recorder, httpRequest)
+
+		assert.Equal(t, "given-id", recorder.Header().Get(echo.HeaderXRequestID))
+	})
+
+	t.Run(`X-Request-Id がなければ生成してレスポンスヘッダへ入れる`, func(t *testing.T) {
+		recorder := sendGet(t, e, "/health")
+
+		assert.NotEmpty(t, recorder.Header().Get(echo.HeaderXRequestID))
+	})
 }

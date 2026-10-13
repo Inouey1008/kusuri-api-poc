@@ -7,6 +7,9 @@ locals {
   # false にすると SSM を読まず、Slack 連携も作らない
   slack_enabled = true
 
+  # false にすると SSM を読まず、Sentry 連携も作らない
+  sentry_enabled = true
+
   # コールドスタート計測時はこの値を変えて apply し直す
   memory_size = 512
 }

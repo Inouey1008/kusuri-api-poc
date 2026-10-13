@@ -31,9 +31,12 @@ func New(config config.Config, db *sql.DB) *echo.Echo {
 		drugHandler,
 	}
 
+	// スライスの先頭ほど外側のミドルウェアになる
 	middlewares := []echo.MiddlewareFunc{
+		middleware.RequestID, // 最外側: 内側のすべてがレスポンスヘッダから request_id を読む
+		middleware.Sentry,    // 内側の Recovery と errorHandler が hub を取り出す
 		middleware.Logging,
-		middleware.Recovery, // !! Recovery を内側に置くことで、panic した要求も 500 として Logging に記録される
+		middleware.Recovery, // 最内側: panic を 500 に変え、外側の Logging に記録させる
 	}
 
 	return newServer(registerers, middlewares)

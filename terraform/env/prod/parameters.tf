@@ -36,3 +36,9 @@ data "aws_ssm_parameter" "slack_channel_id" {
 
   name = "/${local.service_name}/${local.env}/slack_channel_id"
 }
+
+data "aws_ssm_parameter" "sentry_dsn" {
+  count = local.sentry_enabled ? 1 : 0
+
+  name = "/${local.service_name}/${local.env}/sentry_dsn"
+}

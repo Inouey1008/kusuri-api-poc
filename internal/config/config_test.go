@@ -48,6 +48,44 @@ func TestLoad(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run(`SENTRY_DSN が未設定なら空文字になる`, func(t *testing.T) {
+		setRequired(t)
+
+		cfg, err := config.Load()
+
+		require.NoError(t, err)
+		assert.Empty(t, cfg.SentryDSN)
+	})
+
+	t.Run(`SENTRY_DSN を設定すると反映される`, func(t *testing.T) {
+		setRequired(t)
+		t.Setenv("SENTRY_DSN", "https://example.com/1")
+
+		cfg, err := config.Load()
+
+		require.NoError(t, err)
+		assert.Equal(t, "https://example.com/1", cfg.SentryDSN)
+	})
+
+	t.Run(`SENTRY_TRACES_SAMPLE_RATE が未設定なら 0.0 になる`, func(t *testing.T) {
+		setRequired(t)
+
+		cfg, err := config.Load()
+
+		require.NoError(t, err)
+		assert.Zero(t, cfg.SentryTracesSampleRate)
+	})
+
+	t.Run(`SENTRY_TRACES_SAMPLE_RATE を設定すると反映される`, func(t *testing.T) {
+		setRequired(t)
+		t.Setenv("SENTRY_TRACES_SAMPLE_RATE", "0.25")
+
+		cfg, err := config.Load()
+
+		require.NoError(t, err)
+		assert.Equal(t, 0.25, cfg.SentryTracesSampleRate)
+	})
 }
 
 func TestConfig_IsLocal(t *testing.T) {

@@ -9,7 +9,7 @@ resource "aws_apigatewayv2_api" "api" {
     content {
       allow_origins = var.cors_allow_origins
       allow_methods = ["GET"]
-      allow_headers = ["Content-Type", "X-Firebase-AppCheck"]
+      allow_headers = ["Content-Type", "X-Firebase-AppCheck", "X-Request-Id"]
       max_age       = 86400
     }
   }

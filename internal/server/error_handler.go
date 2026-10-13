@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/errorx"
+	"github.com/inouey1008/kusuri-api-poc/internal/sentryx"
 )
 
 // ハンドラが返した error を JSON へ変換する。
@@ -41,6 +42,8 @@ func errorHandler(err error, c echo.Context) {
 	if writeErr := c.JSON(target.Status, target); writeErr != nil {
 		slog.ErrorContext(c.Request().Context(), "failed to write error response", slog.Any("error", writeErr))
 	}
+
+	sentryx.Report(c, err)
 }
 
 // 404 → "NOT_FOUND" のように、status から言語非依存の識別子を作る

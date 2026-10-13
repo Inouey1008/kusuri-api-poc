@@ -8,6 +8,8 @@ module "api" {
   slack_team_id    = local.slack_enabled ? data.aws_ssm_parameter.slack_team_id[0].value : ""
   slack_channel_id = local.slack_enabled ? data.aws_ssm_parameter.slack_channel_id[0].value : ""
 
+  sentry_dsn = local.sentry_enabled ? data.aws_ssm_parameter.sentry_dsn[0].value : ""
+
   docs_user     = aws_ssm_parameter.docs_user.value
   docs_password = aws_ssm_parameter.docs_password.value
 }

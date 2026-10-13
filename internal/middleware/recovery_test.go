@@ -1,11 +1,15 @@
 package middleware_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/getsentry/sentry-go"
+	sentryecho "github.com/getsentry/sentry-go/echo"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,6 +17,33 @@ import (
 	"github.com/inouey1008/kusuri-api-poc/internal/errorx"
 	"github.com/inouey1008/kusuri-api-poc/internal/middleware"
 )
+
+// recordingTransport は SendEvent で受け取ったイベントを記録するだけの sentry.Transport。
+type recordingTransport struct {
+	events []*sentry.Event
+}
+
+func (t *recordingTransport) Configure(sentry.ClientOptions)        {}
+func (t *recordingTransport) SendEvent(event *sentry.Event)         { t.events = append(t.events, event) }
+func (t *recordingTransport) Flush(time.Duration) bool              { return true }
+func (t *recordingTransport) FlushWithContext(context.Context) bool { return true }
+func (t *recordingTransport) Close()                                {}
+
+// newContextWithHub は recordingTransport を積んだ hub を持つ echo.Context を返す。
+func newContextWithHub(t *testing.T, transport *recordingTransport) echo.Context {
+	t.Helper()
+
+	client, err := sentry.NewClient(sentry.ClientOptions{
+		Dsn:       "https://public@example.com/1",
+		Transport: transport,
+	})
+	require.NoError(t, err)
+
+	c := newContext(t)
+	sentryecho.SetHubOnContext(c, sentry.NewHub(client, sentry.NewScope()))
+
+	return c
+}
 
 func newContext(t *testing.T) echo.Context {
 	t.Helper()
@@ -48,7 +79,21 @@ func TestRecovery(t *testing.T) {
 		assert.Equal(t, "VALIDATION_FAILED", target.Code, "panic 以外は書き換えない")
 	})
 
-	t.Run(`panic を Internal に変換する`, func(t *testing.T) {
+	t.Run(`panic を *errorx.Panic に変換し、panic の値を保持する`, func(t *testing.T) {
+		captureLog(t)
+		c := newContext(t)
+
+		err := middleware.Recovery(func(c echo.Context) error {
+			panic("something went wrong")
+		})(c)
+
+		var target *errorx.Panic
+		require.ErrorAs(t, err, &target)
+		assert.Equal(t, "something went wrong", target.Value)
+		assert.NotEmpty(t, target.StackTrace())
+	})
+
+	t.Run(`panic を *errorx.Panic に変換する`, func(t *testing.T) {
 		testCases := []struct {
 			name  string
 			panic func()
@@ -71,10 +116,8 @@ func TestRecovery(t *testing.T) {
 					})(c)
 				})
 
-				var target errorx.Errorx
+				var target *errorx.Panic
 				require.ErrorAs(t, err, &target)
-				assert.Equal(t, http.StatusInternalServerError, target.Status)
-				assert.Equal(t, "INTERNAL_ERROR", target.Code)
 			})
 		}
 	})
@@ -97,5 +140,28 @@ func TestRecovery(t *testing.T) {
 		assert.Equal(t, "ERROR", entry.Level)
 		assert.Equal(t, "panic", entry.Message)
 		assert.NotEmpty(t, entry.Stack)
+	})
+
+	t.Run(`Sentry へは送信しない (送信は errorHandler に一本化されている)`, func(t *testing.T) {
+		captureLog(t)
+		transport := &recordingTransport{}
+		c := newContextWithHub(t, transport)
+
+		_ = middleware.Recovery(func(c echo.Context) error {
+			panic("something went wrong")
+		})(c)
+
+		assert.Empty(t, transport.events)
+	})
+
+	t.Run(`Sentry の hub がなくても panic しない`, func(t *testing.T) {
+		captureLog(t)
+		c := newContext(t)
+
+		require.NotPanics(t, func() {
+			_ = middleware.Recovery(func(c echo.Context) error {
+				panic("something went wrong")
+			})(c)
+		})
 	})
 }

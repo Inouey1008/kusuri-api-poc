@@ -54,8 +54,9 @@ flowchart LR
 
     S["EventBridge Scheduler<br/>5 分ごと"] -.warm-up.-> A
     B -.構造化ログ.-> W["CloudWatch"]
-    W -->|"ERROR / スロットル / 急増"| N["SNS"]
+    W -->|"スロットル / 急増"| N["SNS"]
     N --> K["Slack"]
+    B -.エラー.-> ST["Sentry"]
 ```
 
 | 要素 | 役割 | 定義 |
@@ -63,7 +64,8 @@ flowchart LR
 | API Gateway | 流量制限 (課金の上限)。超過分は Lambda に届かない | [api_gateway.tf](terraform/modules/api/api_gateway.tf) |
 | エイリアス `current` | 公開中のバージョンを指す。疎通確認後に切り替える | [lambda.tf](terraform/modules/api/lambda.tf) |
 | warm-up | コールドスタートを避ける定期実行。効くのは同時実行 1 枠分 | [warmup.tf](terraform/modules/api/warmup.tf) |
-| 監視 | ERROR 件数・スロットル・リクエスト急増を Slack へ通知 | [monitoring.tf](terraform/modules/api/monitoring.tf) |
+| 監視 | スロットル・リクエスト急増を Slack へ通知 | [monitoring.tf](terraform/modules/api/monitoring.tf) |
+| エラー監視 | 4xx/5xx・panic を Sentry に送信 | [internal/server/error_handler.go](internal/server/error_handler.go) |
 
 - コールドスタートの計測結果は [検証レポート](docs/coldstart-report.md) を参照 (Function URL 時代の計測)
 
@@ -97,7 +99,7 @@ make tf-setup ENV=prod
 
 - `AWS_ACCOUNT_ID`: OIDC で引き受けるロールの ARN 組み立てに使用
 
-4. Slack の識別子を SSM パラメータストアに登録する
+4. Slack の識別子・Sentry の DSN を SSM パラメータストアに登録する
 
 秘密情報は `/kusuri-api-poc/<env>/` 配下に `SecureString` で置き、Terraform が apply 時に読み取って Lambda の環境変数として設定する。CI へは値を渡さない。
 
@@ -105,13 +107,19 @@ make tf-setup ENV=prod
 | --- | --- |
 | `docs_user` / `docs_password` | Terraform が生成する。手作業は不要 |
 | `slack_team_id` / `slack_channel_id` | 手作業で登録する |
+| `sentry_dsn` | 手作業で登録する |
 
 ```sh
 aws ssm put-parameter --type SecureString \
   --name /kusuri-api-poc/dev/slack_channel_id --value "C01ABCDEFGH"
+
+aws ssm put-parameter --type SecureString \
+  --name /kusuri-api-poc/dev/sentry_dsn --value "https://xxx@o0.ingest.sentry.io/0"
 ```
 
 Slack の識別子は、AWS コンソール ( Amazon Q Developer in chat applications ) でワークスペースを認可すると得られる。認可しない場合は `locals.tf` の `slack_enabled` を `false` にすると、パラメータなしで apply できる。
+
+Sentry の DSN は、Sentry のプロジェクト設定から取得する。使わない場合は `locals.tf` の `sentry_enabled` を `false` にすると、パラメータなしで apply できる (Sentry 連携は無効になり、起動時に Warn ログが出る) 。
 
 仕様書の資格情報は Terraform が生成するため、使うときは SSM から読み出す。値を変えたい場合は SSM を直接書き換える ( Terraform は上書きしない ) 。
 

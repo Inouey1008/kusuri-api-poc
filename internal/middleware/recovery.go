@@ -24,9 +24,9 @@ func Recovery(next echo.HandlerFunc) echo.HandlerFunc {
 				slog.String("stack", string(debug.Stack())),
 			)
 
-			// panic を捕まえて 500 に変換する
+			// panic を error に変えて返す。応答は errorHandler が汎用の 500 にする
 			// 捕まえないと panic はハンドラの外まで抜け、Lambda が 502 を返す
-			err = errorx.Internal
+			err = errorx.NewPanic(recovered)
 		}()
 
 		return next(c)

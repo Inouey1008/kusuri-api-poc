@@ -2,8 +2,6 @@ package middleware
 
 import (
 	"bytes"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -11,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/awslabs/aws-lambda-go-api-proxy/core"
 	"github.com/labstack/echo/v4"
+
+	"github.com/inouey1008/kusuri-api-poc/internal/masking"
 )
 
 // ログに載せるボディの上限。これを超えるものは記録しない
@@ -21,13 +20,13 @@ const maxLoggedBodyBytes = 4 << 10
 func Logging(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		start := time.Now()
-		requestID := resolveRequestID(c)
+		requestID := c.Response().Header().Get(echo.HeaderXRequestID)
 
 		attrs := []slog.Attr{
 			slog.String("request_id", requestID),
 			slog.String("method", c.Request().Method),
 			slog.String("path", c.Request().URL.Path),
-			slog.Any("query", sanitizeQuery(c.QueryParams())),
+			slog.Any("query", masking.Values(c.QueryParams())),
 			slog.Any("headers", pickHeaders(c.Request().Header)),
 		}
 
@@ -75,27 +74,6 @@ func levelOf(status int) slog.Level {
 	}
 }
 
-func resolveRequestID(c echo.Context) string {
-	if lambdaContext, ok := core.GetRuntimeContextFromContextV2(c.Request().Context()); ok && lambdaContext != nil {
-		return lambdaContext.AwsRequestID
-	}
-
-	if id := c.Request().Header.Get(echo.HeaderXRequestID); id != "" {
-		return id
-	}
-
-	return randomID()
-}
-
-func randomID() string {
-	buf := make([]byte, 16)
-	if _, err := rand.Read(buf); err != nil {
-		return "unknown"
-	}
-
-	return hex.EncodeToString(buf)
-}
-
 func readBodyForLog(c echo.Context) (any, bool) {
 	request := c.Request()
 	if request.Body == nil || request.Body == http.NoBody {
@@ -121,5 +99,5 @@ func readBodyForLog(c echo.Context) (any, bool) {
 		return nil, false
 	}
 
-	return sanitizeJSON(decoded), true
+	return masking.JSON(decoded), true
 }

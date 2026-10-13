@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v4"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -49,7 +50,8 @@ func serve(t *testing.T, path string, handler echo.HandlerFunc) (request, respon
 
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, path, nil), httptest.NewRecorder())
 
-	_ = middleware.Logging(handler)(c)
+	// request_id は RequestID ミドルウェアが決める。Logging 単体では作らない。本番と同じく外側に置く
+	_ = echomiddleware.RequestID()(middleware.Logging(handler))(c)
 
 	decoder := json.NewDecoder(buffer)
 	require.NoError(t, decoder.Decode(&request))
@@ -81,11 +83,24 @@ func TestLogging(t *testing.T) {
 		httpRequest.Header.Set(echo.HeaderXRequestID, "given-id")
 		c := e.NewContext(httpRequest, httptest.NewRecorder())
 
-		_ = middleware.Logging(okHandler)(c)
+		_ = echomiddleware.RequestID()(middleware.Logging(okHandler))(c)
 
 		var entry map[string]any
 		require.NoError(t, json.NewDecoder(buffer).Decode(&entry))
 		assert.Equal(t, "given-id", entry["request_id"], "呼び出し元の追跡 ID を引き継ぐ")
+	})
+
+	t.Run(`RequestID ミドルウェアがなければ request_id は空になる`, func(t *testing.T) {
+		buffer := captureLog(t)
+
+		e := echo.New()
+		c := e.NewContext(httptest.NewRequest(http.MethodGet, "/drugs", nil), httptest.NewRecorder())
+
+		_ = middleware.Logging(okHandler)(c)
+
+		var entry map[string]any
+		require.NoError(t, json.NewDecoder(buffer).Decode(&entry))
+		assert.Empty(t, entry["request_id"], "Logging 単体では ID を作らない")
 	})
 
 	t.Run(`リクエストにはメソッドとパスとクエリを記録する`, func(t *testing.T) {

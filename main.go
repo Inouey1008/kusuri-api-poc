@@ -16,6 +16,7 @@ import (
 
 	"github.com/inouey1008/kusuri-api-poc/internal/config"
 	"github.com/inouey1008/kusuri-api-poc/internal/logx"
+	"github.com/inouey1008/kusuri-api-poc/internal/sentryx"
 	"github.com/inouey1008/kusuri-api-poc/internal/server"
 	"github.com/inouey1008/kusuri-api-poc/internal/sqlite"
 )
@@ -33,6 +34,12 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("invalid configuration", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	// Sentry 初期化
+	if err := sentryx.Init(cfg); err != nil {
+		slog.Error("failed to init sentry", slog.Any("error", err))
 		os.Exit(1)
 	}
 
