@@ -3,7 +3,6 @@ package server
 import (
 	"database/sql"
 
-	sentryecho "github.com/getsentry/sentry-go/echo"
 	"github.com/labstack/echo/v4"
 
 	"github.com/inouey1008/kusuri-api-poc/internal/config"
@@ -11,7 +10,6 @@ import (
 	"github.com/inouey1008/kusuri-api-poc/internal/features/drug"
 	"github.com/inouey1008/kusuri-api-poc/internal/features/health"
 	"github.com/inouey1008/kusuri-api-poc/internal/middleware"
-	"github.com/inouey1008/kusuri-api-poc/internal/sentryx"
 )
 
 type Registerer interface {
@@ -33,18 +31,12 @@ func New(config config.Config, db *sql.DB) *echo.Echo {
 		drugHandler,
 	}
 
-	// スライスの先頭ほど外側のミドルウェアになる (e.Use(middlewares...) へ渡した順に外側から適用される)。
-	// sentryecho を最外側に置くのは、リクエストごとに複製した *sentry.Hub を echo.Context に載せる役目があり、
-	// 内側の Recovery や errorHandler が sentryecho.GetHubFromContext で hub を取れるのはこの順序が前提のため。
-	// 逆順にすると hub が nil になり Sentry へ送信されなくなる
+	// スライスの先頭ほど外側のミドルウェアになる
 	middlewares := []echo.MiddlewareFunc{
-		sentryecho.New(sentryecho.Options{
-			Repanic:         true,
-			WaitForDelivery: true, // Lambda はコンテナ凍結前に配送を待つ必要があるため明示する
-			Timeout:         sentryx.FlushTimeout,
-		}),
+		middleware.RequestID, // 最外側: 内側のすべてがレスポンスヘッダから request_id を読む
+		middleware.Sentry,    // 内側の Recovery と errorHandler が hub を取り出す
 		middleware.Logging,
-		middleware.Recovery, // !! Recovery を最内側に置くことで、panic した要求も 500 として Logging に記録される
+		middleware.Recovery, // 最内側: panic を 500 に変え、外側の Logging に記録させる
 	}
 
 	return newServer(registerers, middlewares)

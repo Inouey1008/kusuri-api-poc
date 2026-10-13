@@ -11,6 +11,7 @@ package sentryx
 import (
 	"errors"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -26,6 +27,9 @@ import (
 const (
 	// FlushTimeout は送信完了を待つ上限時間。
 	FlushTimeout = 2 * time.Second
+
+	// maxTagValueLength は Sentry のタグの値の上限文字数。
+	maxTagValueLength = 200
 )
 
 // Sentry を初期化する
@@ -56,26 +60,49 @@ func Init(cfg config.Config) error {
 
 // Report は error を Sentry へ送信し、送信完了まで待つ。送信はここに一本化している。
 func Report(c echo.Context, err error) {
+	// echo が自動で返した 4xx (ルートなしの 404、メソッド違いの 405、BasicAuth の 401 など) は送らない。
+	// bot や利用者の誤操作由来で問い合わせの対象にならず、クォータを無駄に消費するため。
+	// アプリが意図して返す 4xx は errorx で返すこと (そちらは送る)。
+	var echoErr *echo.HTTPError
+	if errors.As(err, &echoErr) && echoErr.Code >= http.StatusBadRequest && echoErr.Code < http.StatusInternalServerError {
+		return
+	}
+
 	hub := sentryecho.GetHubFromContext(c)
 	if hub == nil { // DSN 未設定など Sentry が無効なとき
 		return
 	}
 
-	var panicErr *errorx.Panic
-	if errors.As(err, &panicErr) {
-		// panic は致命的な不具合なので、通常の error と区別できるよう Fatal で送る
-		hub.WithScope(func(scope *sentry.Scope) {
+	// WithScope 内で設定したタグとレベルは、抜けると元に戻る (次の送信に漏れない)
+	hub.WithScope(func(scope *sentry.Scope) {
+		// ログと同じ request_id を載せ、Sentry で ID を検索 → CloudWatch を同じ ID で検索、と辿れるようにする
+		if id := c.Response().Header().Get(echo.HeaderXRequestID); id != "" {
+			scope.SetTag("request_id", truncate(id, maxTagValueLength))
+		}
+
+		// panic は致命的な不具合なので、通常の error (Error レベル) と区別できるよう Fatal で送る
+		var panicErr *errorx.Panic
+		if errors.As(err, &panicErr) {
 			scope.SetLevel(sentry.LevelFatal)
-			hub.CaptureException(err)
-		})
-	} else {
-		// 通常の error は Error レベルで送る
+		}
+
 		hub.CaptureException(err)
-	}
+	})
 
 	// CaptureException は送信を予約するだけで、実際の送信は裏の goroutine が行う。
 	// Lambda はレスポンスを返すとコンテナを凍結するので、送り終える前に止まらないようここで待つ。
 	hub.Flush(FlushTimeout)
+}
+
+// truncate は s を最大 limit 文字 (rune 単位) に切り詰める。
+// request_id は外部から来る値で長さの保証がないため。rune 単位なのはマルチバイト文字の途中で切らないため。
+func truncate(s string, limit int) string {
+	runes := []rune(s)
+	if len(runes) <= limit {
+		return s
+	}
+
+	return string(runes[:limit])
 }
 
 // maskEvent は Authorization や API キーなど機微な値を送信前に伏せる (BeforeSend)。

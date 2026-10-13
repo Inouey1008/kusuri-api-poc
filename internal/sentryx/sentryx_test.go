@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -204,6 +205,92 @@ func TestReport(t *testing.T) {
 		require.Len(t, transport.events, 2)
 		assert.Equal(t, sentry.LevelFatal, transport.events[0].Level)
 		assert.Equal(t, sentry.LevelError, transport.events[1].Level, "WithScope により Fatal は 1 件目に閉じる")
+	})
+
+	t.Run(`echo 由来の 4xx は送信しない`, func(t *testing.T) {
+		testCases := []struct {
+			name string
+			err  error
+		}{
+			{name: `404`, err: echo.ErrNotFound},
+			{name: `405`, err: echo.ErrMethodNotAllowed},
+			{name: `401`, err: echo.ErrUnauthorized},
+		}
+
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				transport := &mockTransport{}
+				c := newContextWithHub(t, transport)
+
+				sentryx.Report(c, testCase.err)
+
+				assert.Empty(t, transport.events)
+			})
+		}
+	})
+
+	t.Run(`echo 由来の 5xx は送信する`, func(t *testing.T) {
+		transport := &mockTransport{}
+		c := newContextWithHub(t, transport)
+
+		sentryx.Report(c, echo.NewHTTPError(http.StatusInternalServerError))
+
+		assert.Len(t, transport.events, 1)
+	})
+
+	t.Run(`アプリの 4xx (errorx.Validation) は送信する`, func(t *testing.T) {
+		transport := &mockTransport{}
+		c := newContextWithHub(t, transport)
+
+		sentryx.Report(c, errorx.Validation)
+
+		assert.Len(t, transport.events, 1)
+	})
+
+	t.Run(`レスポンスヘッダの X-Request-Id を request_id タグに載せる`, func(t *testing.T) {
+		transport := &mockTransport{}
+		c := newContextWithHub(t, transport)
+		c.Response().Header().Set(echo.HeaderXRequestID, "abc")
+
+		sentryx.Report(c, assert.AnError)
+
+		require.Len(t, transport.events, 1)
+		assert.Equal(t, "abc", transport.events[0].Tags["request_id"])
+	})
+
+	t.Run(`X-Request-Id がなければ request_id タグは付かない`, func(t *testing.T) {
+		transport := &mockTransport{}
+		c := newContextWithHub(t, transport)
+
+		sentryx.Report(c, assert.AnError)
+
+		require.Len(t, transport.events, 1)
+		assert.NotContains(t, transport.events[0].Tags, "request_id")
+	})
+
+	t.Run(`200 文字を超える X-Request-Id は 200 文字に切り詰める`, func(t *testing.T) {
+		transport := &mockTransport{}
+		c := newContextWithHub(t, transport)
+		c.Response().Header().Set(echo.HeaderXRequestID, strings.Repeat("a", 300))
+
+		sentryx.Report(c, assert.AnError)
+
+		require.Len(t, transport.events, 1)
+		assert.Equal(t, strings.Repeat("a", 200), transport.events[0].Tags["request_id"])
+	})
+
+	t.Run(`request_id タグは同じ hub の次の送信へ漏れない`, func(t *testing.T) {
+		transport := &mockTransport{}
+		c := newContextWithHub(t, transport)
+
+		c.Response().Header().Set(echo.HeaderXRequestID, "abc")
+		sentryx.Report(c, assert.AnError)
+		c.Response().Header().Del(echo.HeaderXRequestID)
+		sentryx.Report(c, assert.AnError)
+
+		require.Len(t, transport.events, 2)
+		assert.Equal(t, "abc", transport.events[0].Tags["request_id"])
+		assert.NotContains(t, transport.events[1].Tags, "request_id", "WithScope によりタグは 1 件目に閉じる")
 	})
 }
 
